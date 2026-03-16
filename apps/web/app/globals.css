@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-display: var(--font-display);
+  --font-body:    var(--font-body);
+  --font-sans:    var(--font-body), ui-sans-serif, system-ui, sans-serif;
+
+  /* Warm editorial palette */
+  --color-ink:        #1C1710;
+  --color-ink-light:  #3D3529;
+  --color-muted:      #8B7B6E;
+  --color-faint:      #C4B8AA;
+  --color-border:     #E4DCCF;
+  --color-divide:     #EDE8DF;
+  --color-parchment:  #F6F2EB;
+  --color-warm-white: #FDFBF7;
+
+  --color-amber:      #9C6B2E;
+  --color-amber-dark: #7A5222;
+  --color-amber-wash: #F4E6D0;
+
+  --color-success:    #3A6B4F;
+  --color-danger:     #9B3D3D;
+
+  --color-dark:       #1A1410;
+  --color-dark-mid:   #252019;
+  --color-dark-rule:  #2E2820;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: #F6F2EB;
+  color: #1C1710;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Entrance animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.anim-fade-up   { animation: fadeUp  0.75s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-fade-in   { animation: fadeIn  0.6s ease both; }
+.anim-slide-r   { animation: slideRight 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+.d-100  { animation-delay: 0.10s; }
+.d-200  { animation-delay: 0.20s; }
+.d-300  { animation-delay: 0.30s; }
+.d-400  { animation-delay: 0.40s; }
+.d-500  { animation-delay: 0.55s; }
+.d-600  { animation-delay: 0.70s; }
+
+/* FAQ */
+details summary::-webkit-details-marker { display: none; }

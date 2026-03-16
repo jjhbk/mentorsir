@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Profiles ───────────────────────────────────────────────────────────────────
+// id mirrors auth.users(id) — created by Supabase trigger on sign-up
+model Profile {
+  id               String   @id @db.Uuid
+  role             Role     @default(student)
+  name             String?
+  mobile           String?
+  medium           String?
+  graduationStream String?  @map("graduation_stream")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  intakeForm    IntakeForm?
+  dailyLogs     DailyLog[]
+  scheduleEntries ScheduleEntry[]
+  testResults   TestResult[]
+  studentAudit  StudentAudit?
+
+  @@map("profiles")
+}
+
+enum Role {
+  student
+  mentor
+}
+
+// ── Intake Forms ───────────────────────────────────────────────────────────────
+// 27-field enrollment questionnaire
+model IntakeForm {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String   @unique @map("user_id") @db.Uuid
+  mobile                String?
+  email                 String?
+  medium                String?
+  graduationStream      String?  @map("graduation_stream")
+  prelimsExperience     String?  @map("prelims_experience")
+  attemptCount          Int      @default(0) @map("attempt_count")
+  gsScoreBand           String?  @map("gs_score_band")
+  personalDifficulties  String?  @map("personal_difficulties")
+  strongGsSubjects      String[] @map("strong_gs_subjects")
+  weakGsSubjects        String[] @map("weak_gs_subjects")
+  currentAffairsSource  String?  @map("current_affairs_source")
+  csatStrongArea        String?  @map("csat_strong_area")
+  csatWeakArea          String?  @map("csat_weak_area")
+  csatScoreBand         String?  @map("csat_score_band")
+  mockFrequency         String?  @map("mock_frequency")
+  testAnalysis          String?  @map("test_analysis")
+  wrongQuestionRevision String?  @map("wrong_question_revision")
+  pyqPractice           String?  @map("pyq_practice")
+  planConsistency       String?  @map("plan_consistency")
+  dailyStudyHours       String?  @map("daily_study_hours")
+  revisionCount         String?  @map("revision_count")
+  sourcesPerSubject     String?  @map("sources_per_subject")
+  coreChallenges        String[] @map("core_challenges")
+  mentorshipExpectations String[] @map("mentorship_expectations")
+  discoveryPlatform     String?  @map("discovery_platform")
+  notes                 String?
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("intake_forms")
+}
+
+// ── Daily Logs ─────────────────────────────────────────────────────────────────
+// One row per student per day — core accountability tracking
+model DailyLog {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String        @map("user_id") @db.Uuid
+  date                  DateTime      @db.Date
+  studyHours            Decimal       @default(0) @map("study_hours") @db.Decimal(4, 1)
+  sleepHours            Decimal       @default(0) @map("sleep_hours") @db.Decimal(4, 1)
+  meditationMinutes     Int           @default(0) @map("meditation_minutes")
+  sleepTime             String?       @map("sleep_time")
+  wakeTime              String?       @map("wake_time")
+  taskCompleted         TaskStatus?   @map("task_completed")
+  afternoonNapMinutes   Int           @default(0) @map("afternoon_nap_minutes")
+  hadMentorDiscussion   Boolean       @default(false) @map("had_mentor_discussion")
+  relaxationActivity    String?       @map("relaxation_activity")
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("daily_logs")
+}
+
+enum TaskStatus {
+  yes
+  no
+  partial
+}
+
+// ── Schedule Entries ───────────────────────────────────────────────────────────
+// Mentor-assigned PTP 2.0 weekly study plan
+model ScheduleEntry {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  date         DateTime    @db.Date
+  subject      String?
+  syllabus     String?
+  primarySource String?    @map("primary_source")
+  entryType    EntryType   @default(study) @map("entry_type")
+  completed    Boolean     @default(false)
+  revision1    Boolean     @default(false)
+  revision2    Boolean     @default(false)
+  revision3    Boolean     @default(false)
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("schedule_entries")
+}
+
+enum EntryType {
+  study
+  ca_test        @map("ca-test")
+  sectional_test @map("sectional-test")
+  mentor_connect @map("mentor-connect")
+}
+
+// ── Test Results ───────────────────────────────────────────────────────────────
+// Prelims mock test scores + 8-category mistake breakdown
+model TestResult {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String   @map("user_id") @db.Uuid
+  testName                String   @map("test_name")
+  date                    DateTime @db.Date
+  score                   Decimal? @db.Decimal(5, 1)
+  totalQuestions          Int?     @map("total_questions")
+  mistakeConceptual       Int      @default(0) @map("mistake_conceptual")
+  mistakeRecall           Int      @default(0) @map("mistake_recall")
+  mistakeReading          Int      @default(0) @map("mistake_reading")
+  mistakeElimination      Int      @default(0) @map("mistake_elimination")
+  mistakeDecisionMaking   Int      @default(0) @map("mistake_decision_making")
+  mistakeSilly            Int      @default(0) @map("mistake_silly")
+  mistakePsychological    Int      @default(0) @map("mistake_psychological")
+  mistakePatternMisjudgment Int    @default(0) @map("mistake_pattern_misjudgment")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("test_results")
+}
+
+// ── Student Audits ─────────────────────────────────────────────────────────────
+// Mentor-maintained academic & personality profile per student
+model StudentAudit {
+  userId                 String   @id @map("user_id") @db.Uuid
+  strongAcademicSubjects String[] @default([]) @map("strong_academic_subjects")
+  weakAcademicSubjects   String[] @default([]) @map("weak_academic_subjects")
+  strongPersonalityTraits String[] @default([]) @map("strong_personality_traits")
+  weakPersonalityTraits  String[] @default([]) @map("weak_personality_traits")
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_audits")
+}
