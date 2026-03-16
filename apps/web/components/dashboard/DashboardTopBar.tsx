@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PaymentButton } from "@seedhape/react";
 import { useRouter } from "next/navigation";
 import type { PaymentResult } from "@seedhape/sdk";
@@ -16,9 +16,12 @@ export default function DashboardTopBar({
 }) {
   const [open, setOpen] = useState(initialOpen);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const handledSuccessRef = useRef(false);
   const router = useRouter();
 
   const handleSuccess = () => {
+    if (handledSuccessRef.current) return;
+    handledSuccessRef.current = true;
     setCheckoutError(null);
     setOpen(false);
     router.refresh();
@@ -37,7 +40,10 @@ export default function DashboardTopBar({
             {showBuyPlans && (
               <button
                 type="button"
-                onClick={() => setOpen(true)}
+                onClick={() => {
+                  handledSuccessRef.current = false;
+                  setOpen(true);
+                }}
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-primary-dark"
               >
                 Buy Plans
