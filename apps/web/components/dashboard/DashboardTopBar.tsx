@@ -80,7 +80,7 @@ export default function DashboardTopBar({
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <PlanPaymentCard
-                amount={100}
+                amount={200}
                 title="Pre Training Program"
                 subtitle="3 Months · UPSC Prelims track"
                 priceLabel="₹5,999"
@@ -90,7 +90,7 @@ export default function DashboardTopBar({
                 onExpired={handleExpired}
               />
               <PlanPaymentCard
-                amount={200}
+                amount={300}
                 title="Mains Training Program 2.0"
                 subtitle="3 Months · Answer writing track"
                 priceLabel="₹11,999"
