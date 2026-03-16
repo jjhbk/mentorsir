@@ -4,9 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 
 // Replace these with your actual Supabase project values
 const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_PUBLISHABLE_KEY = 'YOUR_PUBLISHABLE_KEY';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
