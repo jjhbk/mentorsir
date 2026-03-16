@@ -16,6 +16,18 @@ export default function Nav() {
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">
+          <Link
+            href="/dashboard"
+            className="text-sm font-semibold text-primary transition-colors hover:text-primary-dark"
+          >
+            Dashboard
+          </Link>
+          <Link
+            href="/mentor-login"
+            className="text-sm font-semibold text-accent transition-colors hover:text-accent-dark"
+          >
+            Mentor Login
+          </Link>
           {links.map(([label, href]) => (
             <a
               key={label}
@@ -27,12 +39,12 @@ export default function Nav() {
           ))}
         </nav>
 
-        <a
+        <Link
           href="/enroll"
           className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-primary-dark"
         >
-          Enroll <span aria-hidden>₹6,999</span>
-        </a>
+          Sign up
+        </Link>
       </div>
     </header>
   );

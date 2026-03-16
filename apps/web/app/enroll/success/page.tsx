@@ -47,13 +47,20 @@ export default async function EnrollSuccessPage({ searchParams }: Props) {
         </div>
 
         <a
-          href="https://wa.me/919999999999?text=Hi%2C%20I%20just%20filled%20the%20PTP%202.0%20enrollment%20form%20for%20MentorSir!"
+          href="https://wa.me/918826629459?text=Hi%2C%20I%20just%20filled%20the%20PTP%202.0%20enrollment%20form%20for%20MentorSir!"
           target="_blank"
           rel="noopener noreferrer"
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#24A148] px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-[#1f8e3f]"
         >
           Message us on WhatsApp <span aria-hidden>→</span>
         </a>
+
+        <Link
+          href="/dashboard"
+          className="mt-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-7 py-3.5 text-sm font-semibold text-text transition hover:border-primary"
+        >
+          Go to Dashboard <span aria-hidden>→</span>
+        </Link>
 
         <Link
           href="/"

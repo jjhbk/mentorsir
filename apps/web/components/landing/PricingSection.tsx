@@ -1,67 +1,121 @@
-import { PRICING } from "@/lib/constants";
+import Link from "next/link";
+
+const plans = [
+  {
+    code: "ptp_3m",
+    title: "Pre Training Program",
+    subtitle: "Experience the power of right mentorship",
+    duration: "3 Months",
+    description:
+      "A holistic, exam-oriented UPSC Prelims program designed to take you safely from uncertainty in Prelims (60–80 zone) to confident 100+ score.",
+    features: [
+      "GS: PYQ-first GS preparation with mentor connect & smart elimination strategies",
+      "CSAT: IIT & IIM-led CSAT ensuring safe qualification with confidence",
+      "Current Affairs: 1.5-year integrated, Prelims-focused current affairs with smart revision",
+      "Mentorship: Guidance by selected candidates with psychology support for exam resilience",
+    ],
+    friendOffer: "Bring a Friend Offer: ₹10,999 each",
+    oldPrice: "₹6,999",
+    currentPrice: "₹5,999",
+    featured: false,
+  },
+  {
+    code: "mtp_2_3m",
+    title: "Mains Training Program 2.0",
+    subtitle: "Experience the power of right mentorship",
+    duration: "3 Months",
+    description:
+      "MentorSir MTP 2.0 blends answer writing, mentorship & mindfulness to build clarity, focus, and discipline - guiding aspirants to write better and grow consistently.",
+    features: [
+      "Mentorship",
+      "Techniques of Answer Writing",
+      "Daily Tracking",
+      "Thematic Test",
+      "Peer Group Learning",
+      "Meditation",
+    ],
+    friendOffer: "Bring a Friend Offer: ₹10,999 each",
+    oldPrice: "₹24,000",
+    currentPrice: "₹11,999",
+    featured: true,
+  },
+] as const;
 
 export default function PricingSection() {
   return (
     <section id="pricing" className="px-5 py-20 sm:px-6 sm:py-24">
       <div className="mx-auto w-full max-w-6xl">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-accent">Pricing</p>
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-accent">Plans & Pricing</p>
         <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.3rem)] font-bold leading-[1.02] tracking-tight text-text">
-          One plan. Everything included.
+          Two focused tracks. One mentorship philosophy.
         </h2>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-muted sm:text-base">
-          GS, CSAT, current affairs, and personalized guidance are bundled together.
-          Compared with separate purchases, this is a {PRICING.discount}% value advantage.
+          Pick the right plan for your preparation stage. You can enroll from here or activate
+          directly from your dashboard.
         </p>
 
         <div className="mt-10 grid gap-5 md:grid-cols-2">
-          <article className="rounded-3xl border border-border bg-white p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Returning students</p>
-            <p className="mt-3 font-display text-[clamp(2.6rem,6vw,4rem)] font-bold tracking-tight text-text">
-              ₹{PRICING.returning.toLocaleString("en-IN")}
-            </p>
-            <p className="mt-2 text-sm text-text-muted">
-              Save ₹{(PRICING.original - PRICING.returning).toLocaleString("en-IN")} compared to standalone modules.
-            </p>
-            <a
-              href="/enroll"
-              className="mt-7 inline-flex w-full items-center justify-center rounded-full border border-text px-6 py-3 text-sm font-semibold text-text transition-colors hover:bg-text hover:text-white"
+          {plans.map((plan) => (
+            <article
+              key={plan.code}
+              className={plan.featured ? "rounded-3xl bg-text p-8 text-white shadow-xl shadow-black/10" : "rounded-3xl border border-border bg-white p-8"}
             >
-              Continue as returning student
-            </a>
-          </article>
+              <div className="flex items-center justify-between gap-4">
+                <p className={`text-xs font-semibold uppercase tracking-[0.12em] ${plan.featured ? "text-white/70" : "text-text-muted"}`}>
+                  {plan.duration}
+                </p>
+                {plan.featured && (
+                  <span className="rounded-full bg-accent px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
+                    Popular
+                  </span>
+                )}
+              </div>
 
-          <article className="rounded-3xl bg-text p-8 text-white shadow-xl shadow-black/10">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/70">New students</p>
-              <span className="rounded-full bg-accent px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
-                Recommended
-              </span>
-            </div>
-            <p className="mt-3 font-display text-[clamp(2.6rem,6vw,4rem)] font-bold tracking-tight text-white">
-              ₹{PRICING.new.toLocaleString("en-IN")}
-            </p>
-            <p className="mt-2 text-sm text-white/70">
-              Save ₹{(PRICING.original - PRICING.new).toLocaleString("en-IN")} compared to standalone modules.
-            </p>
-            <a
-              href="/enroll"
-              className="mt-7 inline-flex w-full items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
-            >
-              Join this cohort
-            </a>
-          </article>
-        </div>
+              <h3 className={`mt-3 font-display text-4xl font-bold tracking-tight ${plan.featured ? "text-white" : "text-text"}`}>
+                {plan.title}
+              </h3>
+              <p className={`mt-1 text-sm ${plan.featured ? "text-white/75" : "text-text-muted"}`}>{plan.subtitle}</p>
 
-        <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Included modules</p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {PRICING.modules.map((module) => (
-              <span key={module.name} className="rounded-full border border-border px-3 py-1 text-xs text-text-muted">
-                {module.name} · <span className="line-through">₹{module.price.toLocaleString("en-IN")}</span>
-              </span>
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-text-muted">7-day refund window for serious aspirants.</p>
+              <p className={`mt-4 text-sm leading-relaxed ${plan.featured ? "text-white/75" : "text-text-muted"}`}>
+                {plan.description}
+              </p>
+
+              <ul className="mt-5 space-y-2.5">
+                {plan.features.map((feature) => (
+                  <li key={feature} className={`flex items-start gap-2 text-sm ${plan.featured ? "text-white/90" : "text-text"}`}>
+                    <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${plan.featured ? "bg-white/85" : "bg-primary"}`} />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+
+              <p className={`mt-6 text-xs font-semibold uppercase tracking-[0.12em] ${plan.featured ? "text-amber-200" : "text-accent"}`}>
+                {plan.friendOffer}
+              </p>
+
+              <div className="mt-4 flex items-end gap-3">
+                <span className={`text-sm line-through ${plan.featured ? "text-white/55" : "text-text-muted"}`}>{plan.oldPrice}</span>
+                <span className={`font-display text-[clamp(2.6rem,6vw,4rem)] font-bold tracking-tight ${plan.featured ? "text-white" : "text-text"}`}>
+                  {plan.currentPrice}
+                </span>
+              </div>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                <Link
+                  href={`/dashboard?buy=${plan.code}`}
+                  className={plan.featured ? "inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-dark" : "inline-flex items-center justify-center gap-2 rounded-full bg-text px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-dark"}
+                >
+                  Enroll Now <span aria-hidden>→</span>
+                </Link>
+                <Link
+                  href="/dashboard"
+                  className={plan.featured ? "inline-flex items-center justify-center gap-2 rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10" : "inline-flex items-center justify-center gap-2 rounded-full border border-text px-6 py-3 text-sm font-semibold text-text transition hover:bg-text hover:text-white"}
+                >
+                  Buy from Dashboard
+                </Link>
+              </div>
+            </article>
+          ))}
         </div>
       </div>
     </section>

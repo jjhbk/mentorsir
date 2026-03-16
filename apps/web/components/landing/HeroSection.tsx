@@ -28,7 +28,7 @@ export default function HeroSection() {
           <div className="anim-fade-up d-300 mt-10 flex flex-wrap items-center gap-4">
             <a
               href="/enroll"
-              className="inline-flex items-center gap-2 rounded-full bg-text px-7 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-primary-dark"
+              className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#1f7a67,#2c9f86)] px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/35"
             >
               Start Enrollment <span aria-hidden>→</span>
             </a>

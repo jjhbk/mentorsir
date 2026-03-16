@@ -24,6 +24,9 @@ model Profile {
   scheduleEntries ScheduleEntry[]
   testResults   TestResult[]
   studentAudit  StudentAudit?
+  mentorAccessRequest MentorAccessRequest?
+  planSubscriptions PlanSubscription[]
+  seedhapeOrders SeedhaPeOrder[]
 
   @@map("profiles")
 }
@@ -31,6 +34,27 @@ model Profile {
 enum Role {
   student
   mentor
+}
+
+enum MentorRequestStatus {
+  pending
+  approved
+  rejected
+}
+
+enum SubscriptionPlanCode {
+  ptp_3m
+  mtp_2_3m
+}
+
+enum SeedhaPeOrderStatus {
+  created
+  pending
+  verified
+  disputed
+  resolved
+  expired
+  rejected
 }
 
 // ── Intake Forms ───────────────────────────────────────────────────────────────
@@ -164,4 +188,79 @@ model StudentAudit {
   profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("student_audits")
+}
+
+// ── Mentor Access Requests ───────────────────────────────────────────────────
+// Users can request mentor access; admins approve/reject these requests.
+model MentorAccessRequest {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String              @unique @map("user_id") @db.Uuid
+  status          MentorRequestStatus @default(pending)
+  requestedAt     DateTime            @default(now()) @map("requested_at") @db.Timestamptz
+  reviewedAt      DateTime?           @map("reviewed_at") @db.Timestamptz
+  reviewedBy      String?             @map("reviewed_by") @db.Uuid
+  rejectionReason String?             @map("rejection_reason")
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("mentor_access_requests")
+}
+
+// ── Contact Submissions ─────────────────────────────────────────────────────
+// Public website contact form submissions for admin follow-up.
+model ContactSubmission {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  phone     String
+  email     String
+  message   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([createdAt])
+  @@map("contact_submissions")
+}
+
+// ── Plan Subscriptions ───────────────────────────────────────────────────────
+// Purchase intent records for available plans (payment integration pending).
+model PlanSubscription {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String               @map("user_id") @db.Uuid
+  planCode  SubscriptionPlanCode @map("plan_code")
+  planName  String               @map("plan_name")
+  amountInr Int                  @map("amount_inr")
+  active    Boolean              @default(true)
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([active, createdAt])
+  @@unique([userId, planCode])
+  @@map("plan_subscriptions")
+}
+
+// ── SeedhaPe Orders ─────────────────────────────────────────────────────────
+// Payment orders created through SeedhaPe.
+model SeedhaPeOrder {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String               @map("user_id") @db.Uuid
+  planCode        SubscriptionPlanCode @map("plan_code")
+  planName        String               @map("plan_name")
+  amountPaise     Int                  @map("amount_paise")
+  externalOrderId String               @unique @map("external_order_id")
+  seedhapeOrderId String               @unique @map("seedhape_order_id")
+  status          SeedhaPeOrderStatus  @default(created)
+  upiUri          String?              @map("upi_uri")
+  qrCode          String?              @map("qr_code")
+  expiresAt       DateTime?            @map("expires_at") @db.Timestamptz
+  verifiedAt      DateTime?            @map("verified_at") @db.Timestamptz
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("seedhape_orders")
 }

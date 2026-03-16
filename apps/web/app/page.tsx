@@ -7,6 +7,7 @@ import MentorProfilesSection from "@/components/landing/MentorProfilesSection";
 import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
+import ContactSection from "@/components/landing/ContactSection";
 import CTAFooterSection from "@/components/landing/CTAFooterSection";
 
 export default function Home() {
@@ -22,6 +23,7 @@ export default function Home() {
         <PricingSection />
         <TestimonialsSection />
         <FAQSection />
+        <ContactSection />
         <CTAFooterSection />
       </main>
     </>

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
+import { SeedhapeProvider } from "@/components/providers/SeedhapeProvider";
+import { createOrder as createSeedhapeSdkOrder } from "@/lib/seedhape";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -27,13 +29,20 @@ export const metadata: Metadata = {
   },
 };
 
+async function createSeedhapeOrder(
+  opts: Parameters<typeof createSeedhapeSdkOrder>[0]
+) {
+  "use server";
+  return createSeedhapeSdkOrder(opts);
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className={`${playfair.variable} ${dmSans.variable} antialiased`}>
-        {children}
+        <SeedhapeProvider onCreateOrder={createSeedhapeOrder}>{children}</SeedhapeProvider>
       </body>
     </html>
   );

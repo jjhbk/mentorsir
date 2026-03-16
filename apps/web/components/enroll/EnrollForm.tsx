@@ -50,9 +50,14 @@ function GoogleSignInGate() {
     <div className="min-h-screen px-4 py-16">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-8 text-center">
-          <Link href="/" className="text-sm font-medium text-primary hover:underline">
-            ← Back to MentorSir
-          </Link>
+          <div className="flex items-center justify-center gap-5">
+            <Link href="/" className="text-sm font-medium text-primary hover:underline">
+              ← Back to MentorSir
+            </Link>
+            <Link href="/dashboard" className="text-sm font-medium text-primary hover:underline">
+              Go to Dashboard →
+            </Link>
+          </div>
           <h1 className="mt-5 font-display text-4xl font-bold tracking-tight text-text">
             Start your PTP 2.0 application
           </h1>
@@ -167,48 +172,61 @@ export default function EnrollForm() {
 
       const values = getValues();
 
-      const { error: intakeError } = await supabase.from("intake_forms").upsert({
-        user_id: user.id,
-        mobile: values.mobile,
-        email: values.email,
-        medium: values.medium,
-        graduation_stream: values.graduationStream,
-        prelims_experience: values.prelimsExperience,
-        attempt_count: values.attemptCount,
-        gs_score_band: values.gsScoreBand,
-        personal_difficulties: values.personalDifficulties,
-        strong_gs_subjects: values.strongGSSubjects,
-        weak_gs_subjects: values.weakGSSubjects,
-        current_affairs_source: values.currentAffairsSource,
-        csat_strong_area: values.csatStrongArea,
-        csat_weak_area: values.csatWeakArea,
-        csat_score_band: values.csatScoreBand,
-        mock_frequency: values.mockFrequency,
-        test_analysis: values.testAnalysis,
-        wrong_question_revision: values.wrongQuestionRevision,
-        pyq_practice: values.pyqPractice,
-        plan_consistency: values.planConsistency,
-        daily_study_hours: values.dailyStudyHours,
-        revision_count: values.revisionCount,
-        sources_per_subject: values.sourcesPerSubject,
-        core_challenges: values.coreChallenges,
-        mentorship_expectations: values.mentorshipExpectations,
-        discovery_platform: values.discoveryPlatform,
-        notes: values.notes,
-      });
+      // Ensure profile row exists first (intake_forms.user_id has FK -> profiles.id)
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: user.id,
+          name: values.fullName,
+          mobile: values.mobile,
+          medium: values.medium,
+          graduation_stream: values.graduationStream,
+        },
+        { onConflict: "id" }
+      );
+
+      if (profileError) throw profileError;
+
+      const { error: intakeError } = await supabase.from("intake_forms").upsert(
+        {
+          user_id: user.id,
+          mobile: values.mobile,
+          email: values.email,
+          medium: values.medium,
+          graduation_stream: values.graduationStream,
+          prelims_experience: values.prelimsExperience,
+          attempt_count: values.attemptCount,
+          gs_score_band: values.gsScoreBand,
+          personal_difficulties: values.personalDifficulties,
+          strong_gs_subjects: values.strongGSSubjects,
+          weak_gs_subjects: values.weakGSSubjects,
+          current_affairs_source: values.currentAffairsSource,
+          csat_strong_area: values.csatStrongArea,
+          csat_weak_area: values.csatWeakArea,
+          csat_score_band: values.csatScoreBand,
+          mock_frequency: values.mockFrequency,
+          test_analysis: values.testAnalysis,
+          wrong_question_revision: values.wrongQuestionRevision,
+          pyq_practice: values.pyqPractice,
+          plan_consistency: values.planConsistency,
+          daily_study_hours: values.dailyStudyHours,
+          revision_count: values.revisionCount,
+          sources_per_subject: values.sourcesPerSubject,
+          core_challenges: values.coreChallenges,
+          mentorship_expectations: values.mentorshipExpectations,
+          discovery_platform: values.discoveryPlatform,
+          notes: values.notes,
+        },
+        { onConflict: "user_id" }
+      );
 
       if (intakeError) throw intakeError;
 
-      await supabase
-        .from("profiles")
-        .update({ name: values.fullName, mobile: values.mobile })
-        .eq("id", user.id);
-
       clearEnrollmentDraft();
       router.push(`/enroll/success?name=${encodeURIComponent(values.fullName)}`);
-    } catch {
+    } catch (error) {
+      console.error("Enrollment submit failed", error);
       setIsSubmitting(false);
-      alert("Something went wrong. Please try again.");
+      alert("Could not submit your form. Please try again.");
     }
   };
 
@@ -228,9 +246,14 @@ export default function EnrollForm() {
     <div className="min-h-screen px-4 py-8 sm:py-12">
       <div className="mx-auto w-full max-w-2xl">
         <div className="mb-7 text-center">
-          <Link href="/" className="text-sm font-medium text-primary hover:underline">
-            ← Back to MentorSir
-          </Link>
+          <div className="flex items-center justify-center gap-5">
+            <Link href="/" className="text-sm font-medium text-primary hover:underline">
+              ← Back to MentorSir
+            </Link>
+            <Link href="/dashboard" className="text-sm font-medium text-primary hover:underline">
+              Go to Dashboard →
+            </Link>
+          </div>
           <h1 className="mt-4 font-display text-4xl font-bold tracking-tight text-text">
             PTP 2.0 Enrollment
           </h1>

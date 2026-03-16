@@ -1,7 +1,7 @@
 const footerLinks = [
-  ["YouTube", "#"],
-  ["Telegram", "#"],
-  ["Instagram", "#"],
+  ["YouTube", "https://www.youtube.com/@mentorsir.official"],
+  ["Telegram", "https://t.me/mentorsir"],
+  ["Instagram", "https://www.instagram.com/mentorsir.official"],
   ["FAQ", "#faq"],
 ] as const;
 
@@ -20,12 +20,13 @@ export default function CTAFooterSection() {
                 Seats are intentionally limited for personalized attention. Enrollment
                 takes about five minutes.
               </p>
-              <a
-                href="/enroll"
-                className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-semibold text-primary transition-all hover:-translate-y-0.5"
-              >
-                Begin Enrollment <span aria-hidden>→</span>
-              </a>
+<a
+  href="/enroll"
+  className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-sm font-semibold border border-blue-600 transition-all hover:-translate-y-0.5"
+  style={{ color: "black" }}
+>
+  Begin Enrollment <span aria-hidden style={{ color: "black" }}>→</span>
+</a>
             </div>
           </div>
         </div>
@@ -34,7 +35,13 @@ export default function CTAFooterSection() {
           <p className="font-display text-sm font-bold tracking-tight text-white/80">MentorSir</p>
           <div className="flex flex-wrap items-center gap-4">
             {footerLinks.map(([label, href]) => (
-              <a key={label} href={href} className="transition-colors hover:text-white">
+              <a
+                key={label}
+                href={href}
+                target={href.startsWith("http") ? "_blank" : undefined}
+                rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+                className="transition-colors hover:text-white"
+              >
                 {label}
               </a>
             ))}
