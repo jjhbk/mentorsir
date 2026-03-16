@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { PaymentButton, SeedhaPeProvider } from "@seedhape/react";
+import { PaymentButton } from "@seedhape/react";
 import { useRouter } from "next/navigation";
-import type { CreateOrderOptions, OrderData, PaymentResult } from "@seedhape/sdk";
+import type { PaymentResult } from "@seedhape/sdk";
 
 export default function DashboardTopBar({
   roleLabel,
@@ -17,23 +17,6 @@ export default function DashboardTopBar({
   const [open, setOpen] = useState(initialOpen);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const router = useRouter();
-
-  const createOrder = async (opts: CreateOrderOptions): Promise<OrderData> => {
-    setCheckoutError(null);
-    const response = await fetch("/api/payments/seedhape/create-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(opts),
-    });
-
-    const data = (await response.json().catch(() => null)) as (OrderData & { error?: string }) | null;
-
-    if (!response.ok || !data?.id) {
-      throw new Error(data?.error ?? "Could not start payment");
-    }
-
-    return data;
-  };
 
   const handleSuccess = () => {
     setCheckoutError(null);
@@ -76,52 +59,50 @@ export default function DashboardTopBar({
       </header>
 
       {open && (
-        <SeedhaPeProvider onCreateOrder={createOrder}>
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4" role="dialog" aria-modal="true">
-            <div className="w-full max-w-xl rounded-3xl border border-border bg-white p-6 shadow-2xl sm:p-7">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Buy Plans</p>
-                  <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-text">Choose a plan</h2>
-                  <p className="mt-1 text-sm text-text-muted">
-                    Secure checkout powered by SeedhaPe. Access activates after verified payment.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-muted transition hover:text-text"
-                >
-                  Close
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-xl rounded-3xl border border-border bg-white p-6 shadow-2xl sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Buy Plans</p>
+                <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-text">Choose a plan</h2>
+                <p className="mt-1 text-sm text-text-muted">
+                  Secure checkout powered by SeedhaPe. Access activates after verified payment.
+                </p>
               </div>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <PlanPaymentCard
-                  amount={599900}
-                  title="Pre Training Program"
-                  subtitle="3 Months · UPSC Prelims track"
-                  priceLabel="₹5,999"
-                  description="Pre Training Program subscription"
-                  metadata={{ planCode: "ptp_3m" }}
-                  onSuccess={handleSuccess}
-                  onExpired={handleExpired}
-                />
-                <PlanPaymentCard
-                  amount={1199900}
-                  title="Mains Training Program 2.0"
-                  subtitle="3 Months · Answer writing track"
-                  priceLabel="₹11,999"
-                  description="Mains Training Program 2.0 subscription"
-                  metadata={{ planCode: "mtp_2_3m" }}
-                  onSuccess={handleSuccess}
-                  onExpired={handleExpired}
-                />
-              </div>
-              {checkoutError && <p className="mt-4 text-xs font-medium text-danger">{checkoutError}</p>}
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-muted transition hover:text-text"
+              >
+                Close
+              </button>
             </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <PlanPaymentCard
+                amount={100}
+                title="Pre Training Program"
+                subtitle="3 Months · UPSC Prelims track"
+                priceLabel="₹5,999"
+                description="Pre Training Program subscription"
+                metadata={{ planCode: "ptp_3m" }}
+                onSuccess={handleSuccess}
+                onExpired={handleExpired}
+              />
+              <PlanPaymentCard
+                amount={200}
+                title="Mains Training Program 2.0"
+                subtitle="3 Months · Answer writing track"
+                priceLabel="₹11,999"
+                description="Mains Training Program 2.0 subscription"
+                metadata={{ planCode: "mtp_2_3m" }}
+                onSuccess={handleSuccess}
+                onExpired={handleExpired}
+              />
+            </div>
+            {checkoutError && <p className="mt-4 text-xs font-medium text-danger">{checkoutError}</p>}
           </div>
-        </SeedhaPeProvider>
+        </div>
       )}
     </>
   );
