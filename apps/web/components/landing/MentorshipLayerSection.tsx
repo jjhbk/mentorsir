@@ -2,79 +2,30 @@ import { MENTORSHIP_FEATURES } from "@/lib/constants";
 
 export default function MentorshipLayerSection() {
   return (
-    <section
-      id="mentorship"
-      style={{ backgroundColor: "#1A1410", borderBottom: "1px solid #2E2820" }}
-    >
-      <div className="max-w-6xl mx-auto px-6 py-24">
-        {/* Header */}
-        <div
-          className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16 pb-8"
-          style={{ borderBottom: "1px solid #2E2820" }}
-        >
+    <section id="mentorship" className="bg-[#12231f] px-5 py-20 text-white sm:px-6 sm:py-24">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="mb-10 flex flex-col gap-4 sm:mb-12 md:flex-row md:items-end md:justify-between">
           <div>
-            <p
-              className="text-xs font-semibold uppercase mb-4"
-              style={{ color: "#9C6B2E", letterSpacing: "0.22em" }}
-            >
-              The mentorship layer
-            </p>
-            <h2
-              className="font-display font-bold"
-              style={{
-                fontSize: "clamp(32px, 5vw, 60px)",
-                color: "#FDFBF7",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.08,
-              }}
-            >
-              Content alone<br />
-              won&apos;t clear Prelims.
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-300">Mentorship layer</p>
+            <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.3rem)] font-bold leading-[1.02] tracking-tight text-white">
+              Content is important. Supervision is decisive.
             </h2>
           </div>
-          <p
-            className="text-base leading-relaxed max-w-xs"
-            style={{ color: "rgba(253,251,247,0.4)" }}
-          >
-            Direction, daily discipline, and a mentor who actually tracks you — that&apos;s what separates those who clear from those who just study.
+          <p className="max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
+            Daily direction, honest accountability, and fast correction loops are what
+            turn effort into exam-day performance.
           </p>
         </div>
 
-        {/* Feature list — numbered */}
-        <div className="grid md:grid-cols-2 gap-0">
-          {MENTORSHIP_FEATURES.map((f, i) => (
-            <div
-              key={f.title}
-              className="py-8"
-              style={{
-                paddingRight: i % 2 === 0 ? "clamp(20px, 4vw, 64px)" : 0,
-                paddingLeft: i % 2 === 1 ? "clamp(20px, 4vw, 64px)" : 0,
-                borderRight: i % 2 === 0 ? "1px solid #2E2820" : "none",
-                borderBottom: i < 2 ? "1px solid #2E2820" : "none",
-              }}
-            >
-              <p
-                className="font-display font-bold mb-4"
-                style={{
-                  fontSize: "clamp(40px, 5vw, 52px)",
-                  color: "#9C6B2E",
-                  letterSpacing: "-0.04em",
-                  lineHeight: 1,
-                  opacity: 0.2,
-                }}
-              >
-                {String(i + 1).padStart(2, "0")}
+        <div className="grid gap-4 md:grid-cols-2">
+          {MENTORSHIP_FEATURES.map((feature, idx) => (
+            <article key={feature.title} className="rounded-3xl border border-white/15 bg-white/5 p-7 sm:p-8">
+              <p className="font-display text-4xl font-bold tracking-tight text-emerald-300/50">
+                {String(idx + 1).padStart(2, "0")}
               </p>
-              <h3
-                className="font-display font-semibold mb-3"
-                style={{ fontSize: "20px", color: "#FDFBF7", letterSpacing: "-0.02em" }}
-              >
-                {f.title}
-              </h3>
-              <p className="text-sm leading-relaxed" style={{ color: "rgba(253,251,247,0.45)" }}>
-                {f.desc}
-              </p>
-            </div>
+              <h3 className="mt-3 font-display text-2xl font-semibold tracking-tight">{feature.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-white/70 sm:text-base">{feature.desc}</p>
+            </article>
           ))}
         </div>
       </div>

@@ -1,98 +1,46 @@
 import { PILLARS } from "@/lib/constants";
 
-const NUMBERS = ["01", "02", "03"];
-const ACCENT_LINES = ["#9C6B2E", "#3A6B4F", "#4A6B8A"];
+const accents = ["bg-primary", "bg-accent", "bg-emerald-600"] as const;
 
 export default function PillarsSection() {
   return (
-    <section
-      id="program"
-      style={{ backgroundColor: "#F6F2EB", borderBottom: "1px solid #E4DCCF" }}
-    >
-      <div className="max-w-6xl mx-auto px-6 py-24">
-        {/* Header row */}
-        <div
-          className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16 pb-8"
-          style={{ borderBottom: "1px solid #E4DCCF" }}
-        >
+    <section id="program" className="px-5 py-20 sm:px-6 sm:py-24">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="mb-10 flex flex-col gap-4 sm:mb-12 md:flex-row md:items-end md:justify-between">
           <div>
-            <p
-              className="text-xs font-semibold uppercase mb-4"
-              style={{ color: "#9C6B2E", letterSpacing: "0.22em" }}
-            >
-              What&apos;s inside PTP 2.0
-            </p>
-            <h2
-              className="font-display font-bold"
-              style={{ fontSize: "clamp(32px, 5vw, 60px)", color: "#1C1710", letterSpacing: "-0.03em", lineHeight: 1.08 }}
-            >
-              Three pillars.<br />
-              One programme.
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-accent">Program blueprint</p>
+            <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.3rem)] font-bold leading-[1.02] tracking-tight text-text">
+              Three pillars. One integrated system.
             </h2>
           </div>
-          <p
-            className="text-base leading-relaxed max-w-xs"
-            style={{ color: "#8B7B6E" }}
-          >
-            Everything a Prelims aspirant needs — integrated, not scattered across five different platforms.
+          <p className="max-w-md text-sm leading-relaxed text-text-muted sm:text-base">
+            You get one coherent workflow instead of juggling disconnected classes,
+            tests, and guidance from multiple places.
           </p>
         </div>
 
-        {/* Pillar grid */}
-        <div className="grid md:grid-cols-3 gap-0">
-          {PILLARS.map((pillar, i) => (
-            <div
-              key={pillar.id}
-              className="py-8"
-              style={{
-                paddingRight: i < 2 ? "clamp(20px, 4vw, 48px)" : 0,
-                paddingLeft: i > 0 ? "clamp(20px, 4vw, 48px)" : 0,
-                borderRight: i < 2 ? "1px solid #E4DCCF" : "none",
-              }}
-            >
-              {/* Number */}
-              <p
-                className="font-display font-bold mb-5"
-                style={{
-                  fontSize: "clamp(36px, 5vw, 56px)",
-                  color: ACCENT_LINES[i],
-                  letterSpacing: "-0.04em",
-                  lineHeight: 1,
-                  opacity: 0.3,
-                }}
-              >
-                {NUMBERS[i]}
-              </p>
-
-              <h3
-                className="font-display font-bold mb-1"
-                style={{ fontSize: "22px", color: "#1C1710", letterSpacing: "-0.02em" }}
-              >
-                {pillar.title}
-              </h3>
-              <p
-                className="text-xs font-semibold uppercase mb-5"
-                style={{ color: "#8B7B6E", letterSpacing: "0.12em" }}
-              >
+        <div className="grid gap-5 md:grid-cols-3">
+          {PILLARS.map((pillar, idx) => (
+            <article key={pillar.id} className="glass rounded-3xl p-7 sm:p-8">
+              <div className="mb-6 flex items-center justify-between">
+                <span className="font-display text-4xl font-bold tracking-tight text-text/35">
+                  {String(idx + 1).padStart(2, "0")}
+                </span>
+                <span className={`h-2 w-10 rounded-full ${accents[idx]}`} />
+              </div>
+              <h3 className="font-display text-2xl font-bold tracking-tight text-text">{pillar.title}</h3>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
                 {pillar.subtitle}
               </p>
-
-              <ul className="space-y-3">
-                {pillar.points.map((pt) => (
-                  <li key={pt} className="flex items-start gap-3">
-                    <span
-                      className="shrink-0 mt-0.5 text-xs font-semibold"
-                      style={{ color: ACCENT_LINES[i] }}
-                    >
-                      —
-                    </span>
-                    <span className="text-sm leading-relaxed" style={{ color: "#3D3529" }}>
-                      {pt}
-                    </span>
+              <ul className="mt-6 space-y-3">
+                {pillar.points.map((point) => (
+                  <li key={point} className="flex items-start gap-3 text-sm leading-relaxed text-text-muted">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    {point}
                   </li>
                 ))}
               </ul>
-            </div>
+            </article>
           ))}
         </div>
       </div>

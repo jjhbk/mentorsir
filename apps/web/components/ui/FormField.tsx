@@ -16,21 +16,22 @@ export default function FormField({
   className = "",
 }: FormFieldProps) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={`flex flex-col gap-2 ${className}`}>
       <label className="text-sm font-semibold text-text">
         {label}
-        {required && <span className="text-danger ml-1">*</span>}
+        {required && <span className="ml-1 text-danger">*</span>}
       </label>
-      {hint && <p className="text-xs text-text-muted -mt-1">{hint}</p>}
+      {hint && <p className="-mt-0.5 text-xs leading-relaxed text-text-muted">{hint}</p>}
       {children}
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p className="text-sm font-medium text-danger">{error}</p>}
     </div>
   );
 }
 
-// Shared input/select/textarea class strings for consistent styling
-export const inputClass =
-  "w-full border border-border rounded-xl px-4 py-3 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all";
+const controlBase =
+  "w-full rounded-2xl border border-border bg-white px-4 py-3 text-sm text-text placeholder:text-text-muted/90 transition focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10";
+
+export const inputClass = controlBase;
 
 export const selectClass =
-  "w-full border border-border rounded-xl px-4 py-3 text-sm text-text bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all appearance-none cursor-pointer";
+  `${controlBase} appearance-none cursor-pointer bg-[linear-gradient(135deg,#ffffff,#fbfaf4)]`;

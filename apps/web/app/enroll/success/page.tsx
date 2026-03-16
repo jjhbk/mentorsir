@@ -1,61 +1,66 @@
+import Link from "next/link";
+
 interface Props {
   searchParams: Promise<{ name?: string }>;
 }
+
+const nextSteps = [
+  "We review your intake form (within 24 hours)",
+  "You receive a WhatsApp message with payment link",
+  "Complete payment to unlock the full program",
+  "Start your personalized study plan in the app",
+] as const;
 
 export default async function EnrollSuccessPage({ searchParams }: Props) {
   const params = await searchParams;
   const name = params.name ?? "there";
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4 py-16"
-      style={{ background: "linear-gradient(135deg, #0F0A1E 0%, #1A1033 100%)" }}
-    >
-      <div className="max-w-lg w-full text-center">
-        <div className="text-6xl mb-6">🎉</div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-          Welcome, {decodeURIComponent(name)}!
+    <div className="min-h-screen px-4 py-12 sm:py-16">
+      <div className="mx-auto w-full max-w-2xl rounded-[2rem] border border-border bg-surface p-7 text-center shadow-xl shadow-black/5 sm:p-10">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary-light text-3xl">
+          🎉
+        </div>
+
+        <h1 className="font-display text-4xl font-bold tracking-tight text-text sm:text-5xl">
+          Welcome, {decodeURIComponent(name)}
         </h1>
-        <p className="text-white/70 text-lg mb-8 leading-relaxed">
-          Your application has been received. We&apos;re reviewing your intake form and will
-          reach out on WhatsApp within 24 hours with your payment link and program access
-          details.
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-text-muted sm:text-base">
+          Your application has been received. We will review your details and contact you
+          on WhatsApp within 24 hours with your onboarding and payment instructions.
         </p>
 
-        {/* Steps */}
-        <div className="bg-white/10 border border-white/20 rounded-2xl p-6 mb-8 text-left space-y-4">
-          {[
-            { step: "1", text: "We review your intake form (within 24h)" },
-            { step: "2", text: "You receive a WhatsApp message with payment link" },
-            { step: "3", text: "Complete payment to get program access" },
-            { step: "4", text: "Join your personalised study plan on the app" },
-          ].map((item) => (
-            <div key={item.step} className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-accent text-white text-sm font-bold flex items-center justify-center shrink-0">
-                {item.step}
-              </div>
-              <p className="text-white/80 text-sm pt-1">{item.text}</p>
+        <div className="mt-8 rounded-3xl border border-border bg-white p-5 text-left sm:p-6">
+          {nextSteps.map((step, idx) => (
+            <div
+              key={step}
+              className={`flex items-start gap-3 py-3 ${
+                idx < nextSteps.length - 1 ? "border-b border-border/70" : ""
+              }`}
+            >
+              <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
+                {idx + 1}
+              </span>
+              <p className="text-sm leading-relaxed text-text-muted">{step}</p>
             </div>
           ))}
         </div>
 
-        {/* WhatsApp CTA */}
         <a
           href="https://wa.me/919999999999?text=Hi%2C%20I%20just%20filled%20the%20PTP%202.0%20enrollment%20form%20for%20MentorSir!"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-4 rounded-xl text-lg transition-all shadow-lg mb-4"
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#24A148] px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-[#1f8e3f]"
         >
-          <span>💬</span> Message us on WhatsApp
+          Message us on WhatsApp <span aria-hidden>→</span>
         </a>
 
-        <p className="text-white/40 text-sm mt-6">
-          You can also check your email for a confirmation message.
-        </p>
-
-        <a href="/" className="block mt-8 text-white/50 hover:text-white text-sm transition-colors">
-          ← Back to MentorSir
-        </a>
+        <Link
+          href="/"
+          className="mt-5 block text-sm font-medium text-text-muted transition hover:text-text"
+        >
+          ← Back to home
+        </Link>
       </div>
     </div>
   );

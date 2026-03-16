@@ -1,91 +1,42 @@
 import { MENTORS } from "@/lib/constants";
 
-const INITIALS = ["AT", "AG", "RP"];
-
 export default function MentorProfilesSection() {
   return (
-    <section
-      id="mentors"
-      style={{ backgroundColor: "#FDFBF7", borderBottom: "1px solid #E4DCCF" }}
-    >
-      <div className="max-w-6xl mx-auto px-6 py-24">
-        {/* Header */}
-        <div
-          className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-16 pb-8"
-          style={{ borderBottom: "1px solid #E4DCCF" }}
-        >
+    <section id="mentors" className="px-5 py-20 sm:px-6 sm:py-24">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="mb-10 flex flex-col gap-4 sm:mb-12 md:flex-row md:items-end md:justify-between">
           <div>
-            <p
-              className="text-xs font-semibold uppercase mb-4"
-              style={{ color: "#9C6B2E", letterSpacing: "0.22em" }}
-            >
-              Your mentors
-            </p>
-            <h2
-              className="font-display font-bold"
-              style={{
-                fontSize: "clamp(32px, 5vw, 60px)",
-                color: "#1C1710",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.08,
-              }}
-            >
-              Mentored by people<br />
-              who&apos;ve been there.
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-accent">Meet your mentors</p>
+            <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.3rem)] font-bold leading-[1.02] tracking-tight text-text">
+              Guided by people who know the terrain.
             </h2>
           </div>
-          <p className="text-base leading-relaxed max-w-xs" style={{ color: "#8B7B6E" }}>
-            Not theoretical coaches — selected candidates and IIT/IIM graduates who understand the exam from the inside.
+          <p className="max-w-md text-sm leading-relaxed text-text-muted sm:text-base">
+            Each mentor blends exam strategy with practical accountability so your
+            daily work maps to actual prelims outcomes.
           </p>
         </div>
 
-        {/* Mentor cards */}
-        <div className="grid md:grid-cols-3 gap-0">
-          {MENTORS.map((mentor, i) => (
-            <div
-              key={mentor.name}
-              className="py-8"
-              style={{
-                paddingRight: i < 2 ? "clamp(20px, 4vw, 48px)" : 0,
-                paddingLeft: i > 0 ? "clamp(20px, 4vw, 48px)" : 0,
-                borderRight: i < 2 ? "1px solid #E4DCCF" : "none",
-              }}
-            >
-              {/* Large initial as design element */}
-              <div
-                className="font-display font-black mb-6 leading-none"
-                style={{
-                  fontSize: "72px",
-                  color: "#F6F2EB",
-                  letterSpacing: "-0.04em",
-                  position: "relative",
-                }}
-              >
-                {INITIALS[i]}
+        <div className="grid gap-5 md:grid-cols-3">
+          {MENTORS.map((mentor) => (
+            <article key={mentor.name} className="glass rounded-3xl p-7 sm:p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{mentor.role}</p>
+              <h3 className="mt-3 font-display text-2xl font-bold tracking-tight text-text">{mentor.name}</h3>
+              <p className="mt-1 text-xs text-text-muted">{mentor.credentials}</p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                {mentor.subjects.map((subject) => (
+                  <span
+                    key={subject}
+                    className="rounded-full border border-border bg-white/90 px-3 py-1 text-xs font-semibold text-text-muted"
+                  >
+                    {subject}
+                  </span>
+                ))}
               </div>
 
-              <h3
-                className="font-display font-bold mb-1"
-                style={{ fontSize: "20px", color: "#1C1710", letterSpacing: "-0.02em" }}
-              >
-                {mentor.name}
-              </h3>
-              <p className="text-xs font-semibold mb-1" style={{ color: "#9C6B2E", letterSpacing: "0.06em" }}>
-                {mentor.role}
-              </p>
-              <p className="text-xs mb-5" style={{ color: "#8B7B6E" }}>
-                {mentor.credentials}
-              </p>
-
-              {/* Subject tags — text only, no pills */}
-              <p className="text-xs font-semibold uppercase mb-4" style={{ color: "#C4B8AA", letterSpacing: "0.14em" }}>
-                {mentor.subjects.join(" · ")}
-              </p>
-
-              <p className="text-sm leading-relaxed" style={{ color: "#3D3529" }}>
-                {mentor.bio}
-              </p>
-            </div>
+              <p className="mt-5 text-sm leading-relaxed text-text-muted sm:text-base">{mentor.bio}</p>
+            </article>
           ))}
         </div>
       </div>

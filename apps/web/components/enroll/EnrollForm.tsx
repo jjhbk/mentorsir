@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { intakeFormSchema, STEP_FIELDS, type IntakeFormData } from "@/lib/types";
 import {
-  saveEnrollmentDraft,
-  loadEnrollmentDraft,
   clearEnrollmentDraft,
+  loadEnrollmentDraft,
+  saveEnrollmentDraft,
 } from "@/lib/localStorage";
 import { createClient } from "@/lib/supabase/client";
 
@@ -23,67 +24,64 @@ import Step6ReviewPayment from "./Step6ReviewPayment";
 
 const TOTAL_STEPS = 6;
 
-// ── Google Sign-In Gate ──────────────────────────────────────────────────────
-function GoogleSignInGate({ onAuthenticated }: { onAuthenticated: () => void }) {
+function GoogleSignInGate() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError(null);
+
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=/enroll`,
       },
     });
-    if (error) {
+
+    if (authError) {
       setError("Sign-in failed. Please try again.");
       setLoading(false);
     }
-    // On success the page redirects — no need to set loading=false
   };
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <a href="/" className="text-sm text-primary hover:underline">
+    <div className="min-h-screen px-4 py-16">
+      <div className="mx-auto w-full max-w-md">
+        <div className="mb-8 text-center">
+          <Link href="/" className="text-sm font-medium text-primary hover:underline">
             ← Back to MentorSir
-          </a>
-          <div className="mt-6 w-16 h-16 mx-auto rounded-2xl bg-primary-light flex items-center justify-center">
-            <span className="text-3xl">🎯</span>
-          </div>
-          <h1 className="text-2xl font-bold text-text mt-4">Start Your PTP 2.0 Application</h1>
-          <p className="text-text-muted text-sm mt-2">
-            Sign in to save your progress and submit your enrollment form.
+          </Link>
+          <h1 className="mt-5 font-display text-4xl font-bold tracking-tight text-text">
+            Start your PTP 2.0 application
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-text-muted">
+            Sign in once and continue anytime. Your progress is saved automatically.
           </p>
         </div>
 
-        <div className="bg-white border border-border rounded-2xl p-8 shadow-sm text-center">
+        <div className="glass rounded-3xl p-7 text-center sm:p-8">
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-3 border border-border rounded-xl px-6 py-4 font-semibold text-text hover:bg-gray-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            className="inline-flex w-full cursor-pointer items-center justify-center gap-3 rounded-2xl border border-border bg-white px-6 py-4 text-sm font-semibold text-text transition hover:border-primary hover:bg-primary-light/35 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <svg width="20" height="20" viewBox="0 0 48 48">
-              <path fill="#4285F4" d="M44.5 20H24v8.5h11.7C34.1 33.5 29.7 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 2.9l6-6C34.5 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-7.9 19.7-20 0-1.3-.1-2.7-.2-4z"/>
-              <path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.1 19.2 13 24 13c3.1 0 5.8 1.1 8 2.9l6-6C34.5 6.1 29.6 4 24 4c-8 0-14.9 4.7-17.7 10.7z"/>
-              <path fill="#FBBC05" d="M24 44c5.5 0 10.5-1.9 14.3-5l-6.6-5.4C29.7 35.4 27 36 24 36c-5.7 0-10.1-2.5-11.7-7.5l-7 5.4C8.9 40.1 15.9 44 24 44z"/>
-              <path fill="#EA4335" d="M43.6 20H24v8.5h11.7c-.8 2.3-2.3 4.2-4.2 5.6l6.6 5.4C42 36.2 44 30.5 44 24c0-1.3-.1-2.7-.4-4z"/>
+            <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden>
+              <path fill="#4285F4" d="M44.5 20H24v8.5h11.7C34.1 33.5 29.7 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 2.9l6-6C34.5 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-7.9 19.7-20 0-1.3-.1-2.7-.2-4z" />
+              <path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.1 19.2 13 24 13c3.1 0 5.8 1.1 8 2.9l6-6C34.5 6.1 29.6 4 24 4c-8 0-14.9 4.7-17.7 10.7z" />
+              <path fill="#FBBC05" d="M24 44c5.5 0 10.5-1.9 14.3-5l-6.6-5.4C29.7 35.4 27 36 24 36c-5.7 0-10.1-2.5-11.7-7.5l-7 5.4C8.9 40.1 15.9 44 24 44z" />
+              <path fill="#EA4335" d="M43.6 20H24v8.5h11.7c-.8 2.3-2.3 4.2-4.2 5.6l6.6 5.4C42 36.2 44 30.5 44 24c0-1.3-.1-2.7-.4-4z" />
             </svg>
-            {loading ? "Redirecting…" : "Continue with Google"}
+            {loading ? "Redirecting..." : "Continue with Google"}
           </button>
 
-          {error && (
-            <p className="text-danger text-sm mt-4">{error}</p>
-          )}
+          {error && <p className="mt-4 text-sm font-medium text-danger">{error}</p>}
 
-          <p className="text-xs text-text-muted mt-6 leading-relaxed">
-            By continuing you agree to our terms of service. We&apos;ll only use your
-            email to manage your enrollment and send program updates.
+          <p className="mt-5 text-xs leading-relaxed text-text-muted">
+            We only use your account to secure your application, save progress, and send
+            mentorship updates.
           </p>
         </div>
       </div>
@@ -91,7 +89,6 @@ function GoogleSignInGate({ onAuthenticated }: { onAuthenticated: () => void }) 
   );
 }
 
-// ── Main Form ────────────────────────────────────────────────────────────────
 export default function EnrollForm() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
@@ -100,7 +97,6 @@ export default function EnrollForm() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check auth on mount
   useEffect(() => {
     const supabase = createClient();
     void (async () => {
@@ -130,14 +126,12 @@ export default function EnrollForm() {
     },
   });
 
-  // Rehydrate from localStorage draft
   useEffect(() => {
     if (!isAuthenticated) return;
     const draft = loadEnrollmentDraft();
     if (draft) reset(draft as IntakeFormData);
   }, [isAuthenticated, reset]);
 
-  // Auto-save draft to localStorage (debounced 800ms)
   useEffect(() => {
     if (!isAuthenticated) return;
     const subscription = watch((values) => {
@@ -146,6 +140,7 @@ export default function EnrollForm() {
         saveEnrollmentDraft(values as Partial<IntakeFormData>);
       }, 800);
     });
+
     return () => {
       subscription.unsubscribe();
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -155,11 +150,11 @@ export default function EnrollForm() {
   const handleNext = async () => {
     const fields = STEP_FIELDS[currentStep];
     const valid = fields.length === 0 || (await trigger(fields));
-    if (valid) setCurrentStep((s) => Math.min(s + 1, TOTAL_STEPS));
+    if (valid) setCurrentStep((step) => Math.min(step + 1, TOTAL_STEPS));
     else window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleBack = () => setCurrentStep((s) => Math.max(s - 1, 1));
+  const handleBack = () => setCurrentStep((step) => Math.max(step - 1, 1));
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -172,7 +167,6 @@ export default function EnrollForm() {
 
       const values = getValues();
 
-      // Save intake form to Supabase
       const { error: intakeError } = await supabase.from("intake_forms").upsert({
         user_id: user.id,
         mobile: values.mobile,
@@ -205,7 +199,6 @@ export default function EnrollForm() {
 
       if (intakeError) throw intakeError;
 
-      // Update profile name + mobile
       await supabase
         .from("profiles")
         .update({ name: values.fullName, mobile: values.mobile })
@@ -219,51 +212,42 @@ export default function EnrollForm() {
     }
   };
 
-  // Loading state while checking auth
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-9 w-9 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
 
-  // Not signed in — show Google gate
-  if (!isAuthenticated) {
-    return <GoogleSignInGate onAuthenticated={() => setIsAuthenticated(true)} />;
-  }
+  if (!isAuthenticated) return <GoogleSignInGate />;
 
   const formData = getValues();
 
   return (
-    <div className="min-h-screen bg-bg py-10 px-4">
-      <div className="max-w-xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <a href="/" className="text-sm text-primary hover:underline">
+    <div className="min-h-screen px-4 py-8 sm:py-12">
+      <div className="mx-auto w-full max-w-2xl">
+        <div className="mb-7 text-center">
+          <Link href="/" className="text-sm font-medium text-primary hover:underline">
             ← Back to MentorSir
-          </a>
-          <h1 className="text-2xl font-bold text-text mt-3">PTP 2.0 Enrollment</h1>
-          <p className="text-sm text-text-muted mt-1">
-            Takes 5–7 minutes · Your answers shape your personalised mentorship
+          </Link>
+          <h1 className="mt-4 font-display text-4xl font-bold tracking-tight text-text">
+            PTP 2.0 Enrollment
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-text-muted sm:text-base">
+            Takes around 5-7 minutes. Your responses help us personalize your mentorship.
           </p>
         </div>
 
-        <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-sm">
+        <div className="glass rounded-3xl p-5 sm:p-8">
           <StepIndicator currentStep={currentStep} totalSteps={TOTAL_STEPS} />
 
-          {currentStep === 1 && (
-            <Step1BasicInfo register={register} errors={errors} />
-          )}
-          {currentStep === 2 && (
-            <Step2PrelimsBackground register={register} errors={errors} />
-          )}
+          {currentStep === 1 && <Step1BasicInfo register={register} errors={errors} />}
+          {currentStep === 2 && <Step2PrelimsBackground register={register} errors={errors} />}
           {currentStep === 3 && (
             <Step3SubjectComfort register={register} control={control} errors={errors} />
           )}
-          {currentStep === 4 && (
-            <Step4TestStudyHabits register={register} errors={errors} />
-          )}
+          {currentStep === 4 && <Step4TestStudyHabits register={register} errors={errors} />}
           {currentStep === 5 && (
             <Step5ChallengesExpectations register={register} control={control} errors={errors} />
           )}
@@ -276,31 +260,31 @@ export default function EnrollForm() {
           )}
 
           {currentStep < 6 && (
-            <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+            <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
               <button
                 type="button"
                 onClick={handleBack}
                 disabled={currentStep === 1}
-                className="text-sm font-semibold text-text-muted hover:text-text transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="cursor-pointer text-sm font-semibold text-text-muted transition hover:text-text disabled:cursor-not-allowed disabled:opacity-30"
               >
                 ← Back
               </button>
               <button
                 type="button"
                 onClick={handleNext}
-                className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white font-semibold px-6 py-3 rounded-xl transition-all cursor-pointer"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary-dark"
               >
-                {currentStep === 5 ? "Review Application →" : "Continue →"}
+                {currentStep === 5 ? "Review Application" : "Continue"} <span aria-hidden>→</span>
               </button>
             </div>
           )}
 
           {currentStep === 6 && (
-            <div className="mt-6 pt-4 border-t border-border text-center">
+            <div className="mt-6 border-t border-border pt-4 text-center">
               <button
                 type="button"
                 onClick={handleBack}
-                className="text-sm text-text-muted hover:text-text transition-colors cursor-pointer"
+                className="cursor-pointer text-sm font-medium text-text-muted transition hover:text-text"
               >
                 ← Edit previous answers
               </button>
@@ -308,8 +292,8 @@ export default function EnrollForm() {
           )}
         </div>
 
-        <p className="text-center text-xs text-text-muted mt-6">
-          Your progress is auto-saved. You can safely close and return.
+        <p className="mt-4 text-center text-xs text-text-muted">
+          Autosave is enabled, so you can close and continue later.
         </p>
       </div>
     </div>

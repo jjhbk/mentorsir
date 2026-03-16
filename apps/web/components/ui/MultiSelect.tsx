@@ -17,50 +17,53 @@ export default function MultiSelect({
   columns = 2,
   error,
 }: MultiSelectProps) {
-  const toggle = (opt: string) => {
-    if (value.includes(opt)) {
-      onChange(value.filter((v) => v !== opt));
-    } else {
-      if (max && value.length >= max) return;
-      onChange([...value, opt]);
+  const toggle = (option: string) => {
+    if (value.includes(option)) {
+      onChange(value.filter((v) => v !== option));
+      return;
     }
+
+    if (max && value.length >= max) return;
+    onChange([...value, option]);
   };
 
   const colClass =
-    columns === 3 ? "grid-cols-3" : columns === 4 ? "grid-cols-4" : "grid-cols-2";
+    columns === 3 ? "sm:grid-cols-3" : columns === 4 ? "sm:grid-cols-4" : "sm:grid-cols-2";
 
   return (
     <div>
-      <div className={`grid ${colClass} gap-2`}>
-        {options.map((opt) => {
-          const selected = value.includes(opt);
+      <div className={`grid grid-cols-1 gap-2 ${colClass}`}>
+        {options.map((option) => {
+          const selected = value.includes(option);
           const disabled = !selected && !!max && value.length >= max;
+
           return (
             <button
-              key={opt}
+              key={option}
               type="button"
               disabled={disabled}
-              onClick={() => toggle(opt)}
-              className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left border transition-all duration-150 cursor-pointer
-                ${
-                  selected
-                    ? "bg-primary border-primary text-white shadow-sm"
-                    : disabled
-                    ? "border-border text-text-muted opacity-40 cursor-not-allowed"
-                    : "border-border text-text hover:border-primary hover:bg-primary-light"
-                }`}
+              onClick={() => toggle(option)}
+              className={`rounded-2xl border px-3 py-2.5 text-left text-sm font-medium transition ${
+                selected
+                  ? "border-primary bg-primary text-white shadow-sm"
+                  : disabled
+                    ? "cursor-not-allowed border-border bg-surface-soft/50 text-text-muted/60"
+                    : "cursor-pointer border-border bg-white text-text hover:border-primary hover:bg-primary-light/45"
+              }`}
             >
-              {opt}
+              {option}
             </button>
           );
         })}
       </div>
+
       {max && (
-        <p className="text-xs text-text-muted mt-2">
+        <p className="mt-2 text-xs text-text-muted">
           Select up to {max} · {value.length}/{max} chosen
         </p>
       )}
-      {error && <p className="text-sm text-danger mt-1">{error}</p>}
+
+      {error && <p className="mt-1 text-sm font-medium text-danger">{error}</p>}
     </div>
   );
 }

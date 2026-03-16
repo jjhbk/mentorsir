@@ -16,16 +16,16 @@ export default function ProgressBar({
   return (
     <div className={`w-full ${className}`}>
       {showLabel && (
-        <div className="flex justify-between text-sm text-text-muted mb-1">
+        <div className="mb-1 flex justify-between text-sm text-text-muted">
           <span>
             Step {current} of {total}
           </span>
           <span>{pct}%</span>
         </div>
       )}
-      <div className="h-2 bg-primary-light rounded-full overflow-hidden">
+      <div className="h-2 rounded-full bg-primary-light/80">
         <div
-          className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+          className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-primary),#3aa084)] transition-all duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>

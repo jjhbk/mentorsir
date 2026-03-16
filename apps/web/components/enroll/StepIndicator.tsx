@@ -6,33 +6,38 @@ interface StepIndicatorProps {
   totalSteps: number;
 }
 
-export default function StepIndicator({ currentStep, totalSteps }: StepIndicatorProps) {
+export default function StepIndicator({
+  currentStep,
+  totalSteps,
+}: StepIndicatorProps) {
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-3">
+    <div className="mb-8 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
         <p className="text-sm font-semibold text-primary">
           Step {currentStep} of {totalSteps}
         </p>
-        <p className="text-sm font-bold text-text">{STEP_LABELS[currentStep - 1]}</p>
+        <p className="text-sm font-semibold text-text">{STEP_LABELS[currentStep - 1]}</p>
       </div>
       <ProgressBar current={currentStep} total={totalSteps} />
 
-      {/* Step dots */}
-      <div className="flex justify-between mt-3">
-        {STEP_LABELS.map((label, i) => {
-          const step = i + 1;
+      <div className="mt-4 grid grid-cols-6 gap-2">
+        {STEP_LABELS.map((label, idx) => {
+          const step = idx + 1;
           const done = step < currentStep;
           const active = step === currentStep;
+
           return (
-            <div key={label} className="flex flex-col items-center gap-1">
+            <div key={label} className="flex items-center justify-center">
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
                   done
                     ? "bg-primary text-white"
                     : active
-                    ? "bg-primary text-white ring-4 ring-primary-light"
-                    : "bg-border text-text-muted"
+                      ? "bg-white text-primary ring-2 ring-primary"
+                      : "bg-surface-soft text-text-muted"
                 }`}
+                aria-label={label}
+                title={label}
               >
                 {done ? "✓" : step}
               </div>
