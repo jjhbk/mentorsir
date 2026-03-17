@@ -416,6 +416,35 @@ async function StudentDashboard({
                 ? `Telegram: ${assignedMentor.telegramId}`
                 : "Telegram ID not added yet"}
             </p>
+            <div className="mt-3 flex items-center gap-2">
+              {assignedMentor.mobile ? (
+                <a
+                  href={`https://wa.me/${assignedMentor.mobile.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-[#25D366] transition hover:border-[#25D366]"
+                  title="Chat on WhatsApp"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                    <path d="M13.601 2.326A7.85 7.85 0 0 0 12.041 2C7.65 2 4.07 5.58 4.07 9.972c0 1.4.366 2.768 1.062 3.976L4 18l4.159-1.09a7.9 7.9 0 0 0 3.882 1.017h.003c4.39 0 7.97-3.58 7.97-7.972a7.93 7.93 0 0 0-2.413-5.629zM12.044 16.5h-.002a6.5 6.5 0 0 1-3.313-.908l-.237-.14-2.469.647.659-2.407-.154-.247a6.48 6.48 0 0 1-.995-3.473c0-3.584 2.924-6.5 6.517-6.5a6.47 6.47 0 0 1 4.622 1.91 6.46 6.46 0 0 1 1.91 4.607c-.001 3.584-2.925 6.511-6.538 6.511zm3.558-4.844c-.195-.098-1.154-.57-1.333-.635-.18-.066-.31-.098-.44.098-.13.196-.505.635-.619.766-.114.13-.228.147-.423.049-.195-.098-.823-.303-1.568-.967-.58-.517-.971-1.154-1.085-1.35-.114-.196-.012-.302.086-.4.088-.087.195-.228.293-.342.098-.114.13-.196.195-.326.065-.131.033-.245-.016-.343-.049-.098-.44-1.06-.603-1.452-.159-.382-.32-.33-.44-.336l-.375-.006a.72.72 0 0 0-.522.245c-.18.196-.685.668-.685 1.63s.701 1.891.799 2.022c.098.13 1.38 2.107 3.344 2.954.467.201.832.321 1.116.411.469.149.896.128 1.234.078.376-.056 1.154-.472 1.317-.929.163-.457.163-.848.114-.929-.049-.081-.179-.13-.374-.228z" />
+                  </svg>
+                </a>
+              ) : null}
+              {assignedMentor.telegramId ? (
+                <a
+                  href={`https://t.me/${assignedMentor.telegramId.replace(/^@/, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-[#229ED9] transition hover:border-[#229ED9]"
+                  title="Open Telegram"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                    <path d="M21.5 4.6 18.4 19c-.2 1-.8 1.3-1.6.8l-4.5-3.4-2.2 2.1c-.2.2-.4.4-.9.4l.3-4.7 8.6-7.8c.4-.4-.1-.5-.6-.2L6.8 13 2.4 11.6c-1-.3-1-.9.2-1.4l17-6.6c.8-.3 1.5.2 1.3 1Z" />
+                  </svg>
+                </a>
+              ) : null}
+              <span className="ml-1 text-xs text-text-muted">Use “Talk to Mentor Now” for private in-app chat.</span>
+            </div>
           </div>
         ) : (
           <p className="text-sm text-text-muted">
@@ -1748,6 +1777,27 @@ export default async function DashboardPage({
   }
 
   let assignedMentor: MentorSummary | null = null;
+  const getUnreadCount = async (role: "student" | "mentor") => {
+    if (role === "mentor") {
+      const rows = await prisma.$queryRaw<{ unread: number }[]>`
+        SELECT COUNT(*)::int AS unread
+        FROM chat_messages
+        WHERE mentor_id = ${user.id}::uuid
+          AND sender_id <> ${user.id}::uuid
+          AND read_at IS NULL
+      `;
+      return rows[0]?.unread ?? 0;
+    }
+
+    const rows = await prisma.$queryRaw<{ unread: number }[]>`
+      SELECT COUNT(*)::int AS unread
+      FROM chat_messages
+      WHERE student_id = ${user.id}::uuid
+        AND sender_id <> ${user.id}::uuid
+        AND read_at IS NULL
+    `;
+    return rows[0]?.unread ?? 0;
+  };
 
   if (admin) {
     return (
@@ -1755,6 +1805,9 @@ export default async function DashboardPage({
         <DashboardTopBar
           roleLabel="admin"
           showBuyPlans={false}
+          showChat={false}
+          currentUserId={user.id}
+          initialUnreadCount={0}
           profileName={safeProfile.name}
           profileMobile={existingProfile?.mobile ?? null}
           profileTelegramId={existingProfile?.telegram_id ?? null}
@@ -1825,11 +1878,15 @@ export default async function DashboardPage({
         data: { role: "mentor" },
       });
     } else {
+      const pendingUnreadCount = await getUnreadCount(safeProfile.role);
       return (
         <div className="min-h-screen">
           <DashboardTopBar
             roleLabel={safeProfile.role}
             showBuyPlans
+            showChat
+            currentUserId={user.id}
+            initialUnreadCount={pendingUnreadCount}
             profileName={safeProfile.name}
             profileMobile={existingProfile?.mobile ?? null}
             profileTelegramId={existingProfile?.telegram_id ?? null}
@@ -1875,12 +1932,16 @@ export default async function DashboardPage({
         : null;
     }
   }
+  const chatUnreadCount = await getUnreadCount(safeProfile.role);
 
   return (
     <div className="min-h-screen">
       <DashboardTopBar
         roleLabel={safeProfile.role}
         showBuyPlans
+        showChat
+        currentUserId={user.id}
+        initialUnreadCount={chatUnreadCount}
         profileName={safeProfile.name}
         profileMobile={existingProfile?.mobile ?? null}
         profileTelegramId={existingProfile?.telegram_id ?? null}

@@ -1,13 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PaymentButton } from "@seedhape/react";
 import { useRouter } from "next/navigation";
 import type { PaymentResult } from "@seedhape/sdk";
+import MentorChatModal from "@/components/dashboard/MentorChatModal";
+import { createClient } from "@/lib/supabase/client";
 
 export default function DashboardTopBar({
   roleLabel,
   showBuyPlans,
+  showChat,
+  currentUserId,
+  initialUnreadCount = 0,
   profileName,
   profileMobile,
   profileTelegramId,
@@ -15,6 +20,9 @@ export default function DashboardTopBar({
 }: {
   roleLabel: string;
   showBuyPlans: boolean;
+  showChat?: boolean;
+  currentUserId?: string;
+  initialUnreadCount?: number;
   profileName?: string | null;
   profileMobile?: string | null;
   profileTelegramId?: string | null;
@@ -22,9 +30,59 @@ export default function DashboardTopBar({
 }) {
   const [plansOpen, setPlansOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const handledSuccessRef = useRef(false);
   const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+  const isMentor = roleLabel === "mentor";
+
+  const refreshUnread = useCallback(async () => {
+    if (!showChat || !currentUserId) return;
+    const response = await fetch("/api/chat/peers", { cache: "no-store" });
+    const payload = (await response.json().catch(() => null)) as { totalUnread?: number } | null;
+    if (response.ok) {
+      setUnreadCount(payload?.totalUnread ?? 0);
+    }
+  }, [showChat, currentUserId]);
+  const handleSyncUnread = useCallback(() => {
+    void refreshUnread();
+  }, [refreshUnread]);
+  const handleCloseChat = useCallback(() => {
+    setChatOpen(false);
+    void refreshUnread();
+  }, [refreshUnread]);
+
+  useEffect(() => {
+    if (!showChat || !currentUserId) return;
+    const filter = isMentor
+      ? `mentor_id=eq.${currentUserId}`
+      : `student_id=eq.${currentUserId}`;
+    const channel = supabase
+      .channel(`chat-unread:${currentUserId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages", filter },
+        (payload) => {
+          const row = payload.new as { sender_id: string };
+          if (row.sender_id === currentUserId) return;
+          setUnreadCount((value) => value + 1);
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [showChat, currentUserId, isMentor, supabase]);
+
+  useEffect(() => {
+    if (!showChat || !currentUserId) return;
+    const interval = setInterval(() => {
+      void refreshUnread();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [showChat, currentUserId, refreshUnread]);
 
   const handleSuccess = () => {
     if (handledSuccessRef.current) return;
@@ -56,6 +114,23 @@ export default function DashboardTopBar({
                 Buy Plans
               </button>
             )}
+            {showChat && currentUserId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void refreshUnread();
+                  setChatOpen(true);
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text transition hover:border-primary"
+              >
+                {isMentor ? "Talk to Students Now" : "Talk to Mentor Now"}
+                {unreadCount > 0 ? (
+                  <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
+                    {unreadCount}
+                  </span>
+                ) : null}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setProfileOpen(true)}
@@ -201,6 +276,16 @@ export default function DashboardTopBar({
           </div>
         </div>
       )}
+
+      {showChat && currentUserId ? (
+        <MentorChatModal
+          open={chatOpen}
+          onClose={handleCloseChat}
+          onSyncUnread={handleSyncUnread}
+          roleLabel={roleLabel}
+          currentUserId={currentUserId}
+        />
+      ) : null}
     </>
   );
 }

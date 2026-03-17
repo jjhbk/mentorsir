@@ -326,3 +326,20 @@ model AlternateScheduleEntry {
   @@index([userId, date])
   @@map("alternate_schedule_entries")
 }
+
+// ── Mentor Chat ───────────────────────────────────────────────────────────────
+// Private mentor-student chat messages.
+model ChatMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mentorId  String   @map("mentor_id") @db.Uuid
+  studentId String   @map("student_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  message   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+
+  @@index([mentorId, studentId, createdAt])
+  @@index([studentId, createdAt])
+  @@index([mentorId, createdAt])
+  @@map("chat_messages")
+}
