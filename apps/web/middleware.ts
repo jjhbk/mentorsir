@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isAdminEmail } from '@/lib/admin';
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -33,13 +34,41 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/enroll', request.url));
   }
 
-  // Skip auth entry pages when already logged in
-  if (
-    user &&
-    (request.nextUrl.pathname === '/enroll' ||
-      request.nextUrl.pathname === '/mentor-login')
-  ) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Role-aware redirects for auth entry pages
+  if (user && request.nextUrl.pathname === '/mentor-login') {
+    const admin = isAdminEmail(user.email);
+    if (admin) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle<{ role: 'student' | 'mentor' }>();
+
+    if (profile?.role === 'mentor') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    return NextResponse.redirect(new URL('/enroll', request.url));
+  }
+
+  if (user && request.nextUrl.pathname === '/enroll') {
+    const admin = isAdminEmail(user.email);
+    if (admin) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle<{ role: 'student' | 'mentor' }>();
+
+    if (profile?.role === 'mentor') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
   return supabaseResponse;
