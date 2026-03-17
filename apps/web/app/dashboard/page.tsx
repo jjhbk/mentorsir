@@ -4,6 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { autoAssignMentorIfMissing } from "@/lib/mentorAssignment";
+import {
+  MAINS_TEST_SERIES,
+  OPTIONAL_SUBJECT_OPTIONS,
+  PRELIMS_PYQ_OPTIONS,
+  PRELIMS_TEST_SERIES_OPTIONS,
+  RESOURCE_OPTIONS_BY_ROW,
+  RESOURCE_MAPPING_TEMPLATE,
+} from "@/lib/resourceMappingTemplate";
 import DashboardTopBar from "@/components/dashboard/DashboardTopBar";
 import StudyTimerPanel from "@/components/dashboard/StudyTimerPanel";
 import MeetingNotesEditor from "@/components/dashboard/MeetingNotesEditor";
@@ -165,11 +173,10 @@ interface StudentAuditViewRecord {
 }
 
 interface MentorResourceViewRecord {
-  id: string;
-  subject: string;
-  part: string | null;
+  rowKey: string;
   resource: string | null;
   prelimsPyqPractice: string | null;
+  prelimsTestSeries: string | null;
   mainsPyq: string | null;
 }
 
@@ -244,6 +251,34 @@ interface MentorMeetingRecord {
   mentorNotes: string | null;
   mentorNotesAudioUrls: string[];
   rejectionReason: string | null;
+}
+
+const RESOURCE_PAPER_ORDER = [
+  "GS 1",
+  "GS 2",
+  "GS 3",
+  "GS 4",
+  "CSAT",
+  "Optional",
+  "Current Affairs",
+] as const;
+
+const RESOURCE_TEMPLATE_GROUPS = RESOURCE_PAPER_ORDER.map((paper) => ({
+  paper,
+  rows: RESOURCE_MAPPING_TEMPLATE.filter((row) => row.paper === paper),
+})).filter((group) => group.rows.length > 0);
+
+function groupTemplateRowsBySubject(rows: (typeof RESOURCE_MAPPING_TEMPLATE)[number][]) {
+  const map = new Map<string, (typeof RESOURCE_MAPPING_TEMPLATE)[number][]>();
+  rows.forEach((row) => {
+    const list = map.get(row.subject) ?? [];
+    list.push(row);
+    map.set(row.subject, list);
+  });
+  return Array.from(map.entries()).map(([subject, subjectRows]) => ({
+    subject,
+    rows: subjectRows,
+  }));
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -681,20 +716,20 @@ async function StudentDashboard({
     assignedMentor
       ? prisma.$queryRaw<MentorResourceViewRecord[]>`
           SELECT
-            id,
-            subject,
-            part,
+            row_key AS "rowKey",
             resource,
             prelims_pyq_practice AS "prelimsPyqPractice",
+            prelims_test_series AS "prelimsTestSeries",
             mains_pyq AS "mainsPyq"
-          FROM resource_mapping_entries
+          FROM resource_mapping_values
           WHERE owner_id = ${assignedMentor.id}::uuid
-          ORDER BY created_at DESC
-          LIMIT 20
         `
       : Promise.resolve([] as MentorResourceViewRecord[]),
   ]);
   const studentAudit = studentAuditRows[0];
+  const mentorResourceByRowKey = new Map(
+    mentorResources.map((row) => [row.rowKey, row] as const)
+  );
 
   const firstName = profile.name?.split(" ")[0] ?? "Scholar";
   const hour = new Date().getHours();
@@ -1338,38 +1373,38 @@ async function StudentDashboard({
           )}
         </Panel>
 
-        <div className="grid gap-5 md:grid-cols-2">
-          <Panel title="Mentor Academic & Personality Audit">
-            <SectionLead
-              title="Mentor Audit Notes"
-              subtitle="Mentor-entered strengths, weaknesses, and behavioral feedback."
-              tag="Mentor Fills"
-              tone="mentor"
-            />
-            {studentAudit ? (
-              <div className="grid gap-2 text-xs">
-                <div className="rounded-xl border border-border bg-surface px-3 py-2">
-                  <p className="font-semibold text-text">Strong Subjects</p>
-                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.strongAcademicSubjects)}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-surface px-3 py-2">
-                  <p className="font-semibold text-text">Subjects to Improve</p>
-                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.weakAcademicSubjects)}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-surface px-3 py-2">
-                  <p className="font-semibold text-text">Strong Traits</p>
-                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.strongPersonalityTraits)}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-surface px-3 py-2">
-                  <p className="font-semibold text-text">Traits to Improve</p>
-                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.weakPersonalityTraits)}</p>
-                </div>
+        <Panel title="Mentor Academic & Personality Audit">
+          <SectionLead
+            title="Mentor Audit Notes"
+            subtitle="Mentor-entered strengths, weaknesses, and behavioral feedback."
+            tag="Mentor Fills"
+            tone="mentor"
+          />
+          {studentAudit ? (
+            <div className="grid gap-2 text-xs">
+              <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                <p className="font-semibold text-text">Strong Subjects</p>
+                <p className="mt-1 text-text-muted">{formatValue(studentAudit.strongAcademicSubjects)}</p>
               </div>
-            ) : (
-              <p className="text-sm text-text-muted">Your mentor has not added audit notes yet.</p>
-            )}
-          </Panel>
+              <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                <p className="font-semibold text-text">Subjects to Improve</p>
+                <p className="mt-1 text-text-muted">{formatValue(studentAudit.weakAcademicSubjects)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                <p className="font-semibold text-text">Strong Traits</p>
+                <p className="mt-1 text-text-muted">{formatValue(studentAudit.strongPersonalityTraits)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                <p className="font-semibold text-text">Traits to Improve</p>
+                <p className="mt-1 text-text-muted">{formatValue(studentAudit.weakPersonalityTraits)}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted">Your mentor has not added audit notes yet.</p>
+          )}
+        </Panel>
 
+        <div className="mt-5">
           <Panel title="Mentor Resource Mapping">
             <SectionLead
               title="Mentor Resources"
@@ -1377,20 +1412,60 @@ async function StudentDashboard({
               tag="Mentor Fills"
               tone="mentor"
             />
-            {mentorResources.length === 0 ? (
-              <p className="text-sm text-text-muted">No mentor resources shared yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {mentorResources.map((row) => (
-                  <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
-                    <p className="font-semibold text-text">{row.subject}</p>
-                    <p className="mt-1">{row.part ?? "-"} · {row.resource ?? "-"}</p>
-                    <p className="mt-1">Prelims PYQ: {row.prelimsPyqPractice ?? "-"}</p>
-                    <p className="mt-1">Mains PYQ: {row.mainsPyq ?? "-"}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="max-h-[420px] space-y-2 overflow-auto rounded-2xl border border-border bg-surface-soft p-2">
+              {RESOURCE_TEMPLATE_GROUPS.map((group) => (
+                <details
+                  key={`student-resource-group-${group.paper}`}
+                  open={group.paper === "GS 1"}
+                  className="rounded-xl border border-border bg-white"
+                >
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text">
+                    {group.paper} <span className="text-text-muted">({group.rows.length} rows)</span>
+                  </summary>
+                  <div className="space-y-2 border-t border-border p-2">
+                    {groupTemplateRowsBySubject(group.rows).map((subjectGroup, subjectIndex) => (
+                      <details
+                        key={`student-resource-group-${group.paper}-${subjectGroup.subject}`}
+                        open={subjectIndex === 0}
+                        className="rounded-lg border border-border"
+                      >
+                        <summary className="cursor-pointer bg-surface px-3 py-2 text-xs font-semibold text-text">
+                          {subjectGroup.subject}{" "}
+                          <span className="text-text-muted">({subjectGroup.rows.length})</span>
+                        </summary>
+                        <div className="overflow-x-auto border-t border-border">
+                          <table className="w-full min-w-[800px] text-xs">
+                            <thead className="bg-surface-soft">
+                              <tr className="text-left uppercase tracking-[0.1em] text-text-muted">
+                                <th className="px-3 py-2">Part</th>
+                                <th className="px-3 py-2">Resource</th>
+                                <th className="px-3 py-2">Prelims PYQ</th>
+                                <th className="px-3 py-2">Prelims Test Series</th>
+                                <th className="px-3 py-2">Mains PYQ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {subjectGroup.rows.map((templateRow) => {
+                                const row = mentorResourceByRowKey.get(templateRow.rowKey);
+                                return (
+                                  <tr key={templateRow.rowKey} className="border-t border-border bg-white align-top">
+                                    <td className="px-3 py-2 text-text">{templateRow.part}</td>
+                                    <td className="px-3 py-2 text-text-muted">{row?.resource ?? "-"}</td>
+                                    <td className="px-3 py-2 text-text-muted">{row?.prelimsPyqPractice ?? "-"}</td>
+                                    <td className="px-3 py-2 text-text-muted">{row?.prelimsTestSeries ?? "-"}</td>
+                                    <td className="px-3 py-2 text-text-muted">{row?.mainsPyq ?? "-"}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
           </Panel>
         </div>
       </div>
@@ -1447,16 +1522,15 @@ async function MentorDashboard({
       ORDER BY s.date DESC
       LIMIT 10
     `,
-    prisma.$queryRaw<{ id: string; subject: string; part: string | null; resource: string | null }[]>`
+    prisma.$queryRaw<MentorResourceViewRecord[]>`
       SELECT
-        id,
-        subject,
-        part,
-        resource
-      FROM resource_mapping_entries
+        row_key AS "rowKey",
+        resource,
+        prelims_pyq_practice AS "prelimsPyqPractice",
+        prelims_test_series AS "prelimsTestSeries",
+        mains_pyq AS "mainsPyq"
+      FROM resource_mapping_values
       WHERE owner_id = ${mentorId}::uuid
-      ORDER BY created_at DESC
-      LIMIT 20
     `,
     prisma.$queryRaw<MentorStudentLogRecord[]>`
       SELECT
@@ -1549,6 +1623,9 @@ async function MentorDashboard({
   const logMap = new Map<string, { userId: string; date: string; studyHours: number }>();
   recentLogs.forEach((log) => logMap.set(log.userId, log));
   const loggedToday = students.filter((student) => logMap.get(student.id)?.date === today).length;
+  const resourceMapByRowKey = new Map(
+    resourceMappings.map((row) => [row.rowKey, row] as const)
+  );
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-6 sm:py-12">
@@ -1681,33 +1758,156 @@ async function MentorDashboard({
         </Panel>
       </div>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-2">
+      <div className="mt-5">
         <Panel title="Resource Mapping">
           <SectionLead
-            title="3. Add Resource Mapping"
-            subtitle="Build a reusable subject-part-resource knowledge base."
+            title="3. Resource Mapping Grid"
+            subtitle="First three columns are fixed for all users. Save editable values per row."
             tag="You Fill"
             tone="mentor"
           />
-          <form action="/api/resource-mapping" method="post" className="grid gap-2">
-            <input name="subject" required placeholder="Subject" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            <input name="part" placeholder="Part / Topic" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            <input name="resource" placeholder="Resource" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            <input name="prelimsPyqPractice" placeholder="Prelims PYQ practice" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            <input name="mainsPyq" placeholder="Mains PYQ" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            <button type="submit" className="mt-1 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
-              Add Mapping
-            </button>
-          </form>
-          <ul className="mt-4 space-y-2">
-            {resourceMappings.map((row) => (
-              <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
-                <span className="font-semibold text-text">{row.subject}</span> · {row.part ?? "-"} · {row.resource ?? "-"}
-              </li>
+          <div className="max-h-[70vh] space-y-2 overflow-auto rounded-2xl border border-border bg-surface-soft p-2">
+            {RESOURCE_TEMPLATE_GROUPS.map((group) => (
+              <details
+                key={`mentor-resource-group-${group.paper}`}
+                open={group.paper === "GS 1"}
+                className="rounded-xl border border-border bg-white"
+              >
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text">
+                  {group.paper} <span className="text-text-muted">({group.rows.length} rows)</span>
+                </summary>
+                <div className="space-y-2 border-t border-border p-2">
+                  {groupTemplateRowsBySubject(group.rows).map((subjectGroup, subjectIndex) => (
+                    <details
+                      key={`mentor-resource-group-${group.paper}-${subjectGroup.subject}`}
+                      open={subjectIndex === 0}
+                      className="rounded-lg border border-border"
+                    >
+                      <summary className="cursor-pointer bg-surface px-3 py-2 text-xs font-semibold text-text">
+                        {subjectGroup.subject}{" "}
+                        <span className="text-text-muted">({subjectGroup.rows.length})</span>
+                      </summary>
+                      <div className="overflow-x-auto border-t border-border">
+                        <table className="w-full min-w-[980px] text-xs">
+                          <thead className="bg-surface-soft">
+                            <tr className="text-left uppercase tracking-[0.1em] text-text-muted">
+                              <th className="px-3 py-2">Part</th>
+                              <th className="px-3 py-2">Resource (Editable)</th>
+                              <th className="px-3 py-2">Prelims PYQ</th>
+                              <th className="px-3 py-2">Prelims Test Series</th>
+                              <th className="px-3 py-2">Mains PYQ</th>
+                              <th className="px-3 py-2">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {subjectGroup.rows.map((templateRow) => {
+                              const row = resourceMapByRowKey.get(templateRow.rowKey);
+                              const isCustomOptionalResource =
+                                templateRow.rowKey === "optional" &&
+                                !!row?.resource &&
+                                !(OPTIONAL_SUBJECT_OPTIONS as readonly string[]).includes(row.resource);
+                              return (
+                                <tr key={templateRow.rowKey} className="border-t border-border bg-white align-top">
+                                  <td className="px-3 py-2 text-text">{templateRow.part}</td>
+                                  <td colSpan={4} className="px-3 py-2">
+                                    <form action="/api/resource-mapping" method="post" className="grid gap-2 md:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+                                      <input type="hidden" name="rowKey" value={templateRow.rowKey} />
+                                      {templateRow.rowKey === "optional" ? (
+                                        <div className="grid gap-1">
+                                          <select
+                                            name="resource"
+                                            defaultValue={isCustomOptionalResource ? "Other" : (row?.resource ?? "")}
+                                            className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                          >
+                                            <option value="">Select optional subject</option>
+                                            {OPTIONAL_SUBJECT_OPTIONS.map((option) => (
+                                              <option key={`optional-subject-${option}`} value={option}>
+                                                {option}
+                                              </option>
+                                            ))}
+                                            <option value="Other">Other</option>
+                                          </select>
+                                          <input
+                                            name="optionalOtherResource"
+                                            defaultValue={isCustomOptionalResource ? (row?.resource ?? "") : ""}
+                                            placeholder="Other optional subject (if selected)"
+                                            className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <input
+                                          name="resource"
+                                          defaultValue={row?.resource ?? ""}
+                                          placeholder="Resource notes"
+                                          list={`resource-options-${templateRow.rowKey}`}
+                                          className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                        />
+                                      )}
+                                      <datalist id={`resource-options-${templateRow.rowKey}`}>
+                                        {(RESOURCE_OPTIONS_BY_ROW[templateRow.rowKey] ?? []).map((option) => (
+                                          <option key={`${templateRow.rowKey}-resource-${option}`} value={option} />
+                                        ))}
+                                      </datalist>
+                                      <select
+                                        name="prelimsPyqPractice"
+                                        defaultValue={row?.prelimsPyqPractice ?? ""}
+                                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                      >
+                                        <option value="">Select</option>
+                                        {PRELIMS_PYQ_OPTIONS.map((option) => (
+                                          <option key={`${templateRow.rowKey}-pyq-${option}`} value={option}>
+                                            {option}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        name="prelimsTestSeries"
+                                        defaultValue={row?.prelimsTestSeries ?? ""}
+                                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                      >
+                                        <option value="">Select</option>
+                                        {PRELIMS_TEST_SERIES_OPTIONS.map((option) => (
+                                          <option key={`${templateRow.rowKey}-pts-${option}`} value={option}>
+                                            {option}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        name="mainsPyq"
+                                        defaultValue={row?.mainsPyq ?? ""}
+                                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                      >
+                                        <option value="">Select</option>
+                                        {MAINS_TEST_SERIES.map((option) => (
+                                          <option key={`${templateRow.rowKey}-mains-${option}`} value={option}>
+                                            {option}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        type="submit"
+                                        className="inline-flex rounded-full bg-primary px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
+                                      >
+                                        Save
+                                      </button>
+                                    </form>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </details>
             ))}
-          </ul>
+          </div>
         </Panel>
+      </div>
 
+      <div className="mt-5">
         <Panel title="Recent Schedule Entries">
           <SectionLead
             title="Recently Assigned Schedules"

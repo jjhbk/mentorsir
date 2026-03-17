@@ -37,6 +37,7 @@ model Profile {
   yearlyPlanEntries   YearlyPlanEntry[]
   alternateScheduleEntries AlternateScheduleEntry[]
   resourceMappings    ResourceMappingEntry[] @relation("ResourceMappingOwner")
+  resourceMappingValues ResourceMappingValue[] @relation("ResourceMappingValueOwner")
 
   @@map("profiles")
 }
@@ -341,6 +342,25 @@ model ResourceMappingEntry {
 
   @@index([ownerId, createdAt])
   @@map("resource_mapping_entries")
+}
+
+// Per-user editable values for a fixed global resource mapping template.
+model ResourceMappingValue {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId            String   @map("owner_id") @db.Uuid
+  rowKey             String   @map("row_key")
+  resource           String?
+  prelimsPyqPractice String?  @map("prelims_pyq_practice")
+  prelimsTestSeries  String?  @map("prelims_test_series")
+  mainsPyq           String?  @map("mains_pyq")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner Profile @relation("ResourceMappingValueOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, rowKey])
+  @@index([ownerId, createdAt])
+  @@map("resource_mapping_values")
 }
 
 // ── Yearly Plan ──────────────────────────────────────────────────────────────
