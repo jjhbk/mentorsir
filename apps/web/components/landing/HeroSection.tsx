@@ -5,6 +5,9 @@ const stats = [
   ["₹6,999", "Complete package"],
 ] as const;
 
+const BROCHURE_URL =
+  "https://kkuualsrlsqxdizu.public.blob.vercel-storage.com/brochure.pdf";
+
 export default function HeroSection() {
   return (
     <section className="relative overflow-hidden px-5 pb-20 pt-36 sm:px-6 sm:pb-24 sm:pt-40">
@@ -37,6 +40,15 @@ export default function HeroSection() {
               className="inline-flex items-center gap-2 rounded-full border border-border bg-white/80 px-7 py-3.5 text-sm font-semibold text-text transition-colors hover:border-primary"
             >
               Explore Program
+            </a>
+            <a
+              href={BROCHURE_URL}
+              target="_blank"
+              rel="noreferrer"
+              download
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-white/80 px-7 py-3.5 text-sm font-semibold text-text transition-colors hover:border-primary"
+            >
+              Download Brochure
             </a>
           </div>
         </div>
