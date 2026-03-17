@@ -15,18 +15,22 @@ model Profile {
   role             Role     @default(student)
   name             String?
   mobile           String?
+  telegramId       String?  @map("telegram_id")
   medium           String?
   graduationStream String?  @map("graduation_stream")
+  mentorId         String?  @map("mentor_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  intakeForm    IntakeForm?
-  dailyLogs     DailyLog[]
-  scheduleEntries ScheduleEntry[]
-  testResults   TestResult[]
-  studentAudit  StudentAudit?
+  assignedMentor      Profile?  @relation("MentorStudents", fields: [mentorId], references: [id], onDelete: SetNull)
+  assignedStudents    Profile[] @relation("MentorStudents")
+  intakeForm          IntakeForm?
+  dailyLogs           DailyLog[]
+  scheduleEntries     ScheduleEntry[]
+  testResults         TestResult[]
+  studentAudit        StudentAudit?
   mentorAccessRequest MentorAccessRequest?
-  planSubscriptions PlanSubscription[]
-  seedhapeOrders SeedhaPeOrder[]
+  planSubscriptions   PlanSubscription[]
+  seedhapeOrders      SeedhaPeOrder[]
 
   @@map("profiles")
 }

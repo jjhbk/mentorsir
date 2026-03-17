@@ -3,11 +3,25 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
+import { autoAssignMentorIfMissing } from "@/lib/mentorAssignment";
 import DashboardTopBar from "@/components/dashboard/DashboardTopBar";
 
 interface Profile {
   role: "student" | "mentor";
   name: string | null;
+}
+
+interface ProfileWithMentorId extends Profile {
+  mentor_id: string | null;
+  mobile: string | null;
+  telegram_id: string | null;
+}
+
+interface MentorSummary {
+  id: string;
+  name: string | null;
+  mobile: string | null;
+  telegramId: string | null;
 }
 
 interface MentorRequestRecord {
@@ -37,6 +51,22 @@ interface PlanSubscriptionRecord {
   amountInr: number;
   active: boolean;
   createdAt: Date;
+}
+
+interface MentorProfileRecord {
+  id: string;
+  name: string | null;
+  mobile: string | null;
+  telegramId: string | null;
+}
+
+interface StudentMentorAssignmentRecord {
+  id: string;
+  name: string | null;
+  mobile: string | null;
+  telegramId: string | null;
+  mentorId: string | null;
+  mentorName: string | null;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -90,9 +120,11 @@ function IntakeField({ label, value }: { label: string; value: unknown }) {
 
 async function StudentDashboard({
   profile,
+  assignedMentor,
   boughtPlan,
 }: {
   profile: Profile;
+  assignedMentor: MentorSummary | null;
   boughtPlan?: string;
 }) {
   const supabase = await createClient();
@@ -135,6 +167,26 @@ async function StudentDashboard({
           Request Mentor Access <span aria-hidden>→</span>
         </Link>
       </header>
+
+      <Panel title="Assigned Mentor">
+        {assignedMentor ? (
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <p className="text-sm font-semibold text-text">{assignedMentor.name ?? "Mentor"}</p>
+            <p className="mt-1 text-xs text-text-muted">
+              {assignedMentor.mobile ? `Phone: ${assignedMentor.mobile}` : "Phone not added yet"}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              {assignedMentor.telegramId
+                ? `Telegram: ${assignedMentor.telegramId}`
+                : "Telegram ID not added yet"}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Your mentor will be assigned shortly. Please check back in a moment.
+          </p>
+        )}
+      </Panel>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCell
@@ -210,9 +262,11 @@ async function StudentDashboard({
 
 async function MentorDashboard({
   profile,
+  mentorId,
   boughtPlan,
 }: {
   profile: Profile;
+  mentorId: string;
   boughtPlan?: string;
 }) {
   const supabase = await createClient();
@@ -222,7 +276,12 @@ async function MentorDashboard({
   const yesterday = yesterdayDate.toISOString().slice(0, 10);
 
   const [{ data: students }, { data: recentLogs }] = await Promise.all([
-    supabase.from("profiles").select("id, name, mobile").eq("role", "student").order("name"),
+    supabase
+      .from("profiles")
+      .select("id, name, mobile")
+      .eq("role", "student")
+      .eq("mentor_id", mentorId)
+      .order("name"),
     supabase.from("daily_logs").select("user_id, date, study_hours").gte("date", yesterday),
   ]);
 
@@ -249,9 +308,9 @@ async function MentorDashboard({
         <MetricCell label="Not logged" value={String((students?.length ?? 0) - loggedToday)} />
       </div>
 
-      <Panel title="All Students">
+      <Panel title="Assigned Students">
         {(students ?? []).length === 0 ? (
-          <p className="text-sm text-text-muted">No students enrolled yet.</p>
+          <p className="text-sm text-text-muted">No students assigned yet.</p>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-border">
             <table className="w-full min-w-[620px] text-sm">
@@ -298,7 +357,7 @@ async function MentorDashboard({
 }
 
 async function AdminDashboard() {
-  const [forms, mentorRequests, reviewerProfiles, contactSubmissions, activeSubscriptions] =
+  const [forms, mentorRequests, reviewerProfiles, mentors, studentMentorAssignments, contactSubmissions, activeSubscriptions] =
     await Promise.all([
     prisma.intakeForm.findMany({
       include: {
@@ -323,6 +382,30 @@ async function AdminDashboard() {
     prisma.profile.findMany({
       select: { id: true, name: true },
     }),
+    prisma.$queryRaw<MentorProfileRecord[]>`
+      SELECT
+        id,
+        name,
+        mobile,
+        telegram_id AS "telegramId"
+      FROM profiles
+      WHERE role = 'mentor'::"Role"
+      ORDER BY name ASC NULLS LAST, created_at ASC
+    `,
+    prisma.$queryRaw<StudentMentorAssignmentRecord[]>`
+      SELECT
+        student.id,
+        student.name,
+        student.mobile,
+        student.telegram_id AS "telegramId",
+        student.mentor_id AS "mentorId",
+        mentor.name AS "mentorName"
+      FROM profiles AS student
+      LEFT JOIN profiles AS mentor ON mentor.id = student.mentor_id
+      WHERE student.role = 'student'::"Role"
+      ORDER BY student.name ASC NULLS LAST, student.created_at ASC
+      LIMIT 1000
+    `,
       prisma.$queryRaw<ContactSubmissionRecord[]>`
       SELECT
         id,
@@ -364,6 +447,165 @@ async function AdminDashboard() {
       </header>
 
       <div className="grid gap-5">
+        <Panel title="Student Management">
+          {studentMentorAssignments.length === 0 ? (
+            <p className="text-sm text-text-muted">No students available yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[980px] text-sm">
+                <thead className="bg-surface-soft">
+                  <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                    <th className="px-4 py-3">Student</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Phone</th>
+                    <th className="px-4 py-3">Telegram ID</th>
+                    <th className="px-4 py-3">Assigned mentor</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentMentorAssignments.map((student) => (
+                    <tr key={student.id} className="border-t border-border bg-white">
+                      <td className="px-4 py-3 align-top text-xs text-text-muted">{student.id}</td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          form={`student-management-${student.id}`}
+                          name="name"
+                          defaultValue={student.name ?? ""}
+                          className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                          placeholder="Student name"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          form={`student-management-${student.id}`}
+                          name="mobile"
+                          defaultValue={student.mobile ?? ""}
+                          className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                          placeholder="Phone number"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <input
+                          form={`student-management-${student.id}`}
+                          name="telegramId"
+                          defaultValue={student.telegramId ?? ""}
+                          className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                          placeholder="@telegram"
+                        />
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <select
+                          form={`student-management-${student.id}`}
+                          name="mentorId"
+                          defaultValue={student.mentorId ?? ""}
+                          className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                        >
+                          <option value="">Unassigned</option>
+                          {mentors.map((mentor) => (
+                            <option key={mentor.id} value={mentor.id}>
+                              {mentor.name ?? mentor.id}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-xs text-text-muted">{student.mentorName ?? "Unassigned"}</p>
+                      </td>
+                      <td className="px-4 py-3 text-right align-top">
+                        <form
+                          id={`student-management-${student.id}`}
+                          action="/api/admin/profile-management"
+                          method="post"
+                          className="inline-flex"
+                        >
+                          <input type="hidden" name="profileId" value={student.id} />
+                          <input type="hidden" name="targetRole" value="student" />
+                          <button
+                            type="submit"
+                            className="inline-flex shrink-0 rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-primary-dark"
+                          >
+                            Save
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="Mentor Management">
+          {mentors.length === 0 ? (
+            <p className="text-sm text-text-muted">No mentors available yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[980px] text-sm">
+                <thead className="bg-surface-soft">
+                  <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                    <th className="px-4 py-3">Mentor</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Phone</th>
+                    <th className="px-4 py-3">Telegram ID</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mentors.map((mentor) => (
+                    <tr key={mentor.id} className="border-t border-border bg-white">
+                      <td className="px-4 py-3 text-xs text-text-muted">{mentor.id}</td>
+                      <td className="px-4 py-3">
+                        <input
+                          form={`mentor-management-${mentor.id}`}
+                          name="name"
+                          defaultValue={mentor.name ?? ""}
+                          className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                          placeholder="Mentor name"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          form={`mentor-management-${mentor.id}`}
+                          name="mobile"
+                          defaultValue={mentor.mobile ?? ""}
+                          className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                          placeholder="Phone number"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          form={`mentor-management-${mentor.id}`}
+                          name="telegramId"
+                          defaultValue={mentor.telegramId ?? ""}
+                          className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                          placeholder="@telegram"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <form
+                          id={`mentor-management-${mentor.id}`}
+                          action="/api/admin/profile-management"
+                          method="post"
+                          className="inline-flex"
+                        >
+                          <input type="hidden" name="profileId" value={mentor.id} />
+                          <input type="hidden" name="targetRole" value="mentor" />
+                          <button
+                            type="submit"
+                            className="inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-primary-dark"
+                          >
+                            Save
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+
         <Panel title="Mentor Access Requests">
           {mentorRequests.length === 0 ? (
             <p className="text-sm text-text-muted">No mentor requests yet.</p>
@@ -636,12 +878,17 @@ export default async function DashboardPage({
 
   const { data: existingProfile } = await supabase
     .from("profiles")
-    .select("role, name")
+    .select("role, name, mobile, telegram_id, mentor_id")
     .eq("id", user.id)
-    .maybeSingle<Profile>();
+    .maybeSingle<ProfileWithMentorId>();
 
   let safeProfile: Profile =
-    existingProfile ??
+    (existingProfile
+      ? {
+          role: existingProfile.role,
+          name: existingProfile.name,
+        }
+      : null) ??
     ({
       role: "student",
       name:
@@ -666,10 +913,18 @@ export default async function DashboardPage({
     }
   }
 
+  let assignedMentor: MentorSummary | null = null;
+
   if (admin) {
     return (
       <div className="min-h-screen">
-        <DashboardTopBar roleLabel="admin" showBuyPlans={false} />
+        <DashboardTopBar
+          roleLabel="admin"
+          showBuyPlans={false}
+          profileName={safeProfile.name}
+          profileMobile={existingProfile?.mobile ?? null}
+          profileTelegramId={existingProfile?.telegram_id ?? null}
+        />
         <AdminDashboard />
       </div>
     );
@@ -738,7 +993,13 @@ export default async function DashboardPage({
     } else {
       return (
         <div className="min-h-screen">
-          <DashboardTopBar roleLabel={safeProfile.role} showBuyPlans />
+          <DashboardTopBar
+            roleLabel={safeProfile.role}
+            showBuyPlans
+            profileName={safeProfile.name}
+            profileMobile={existingProfile?.mobile ?? null}
+            profileTelegramId={existingProfile?.telegram_id ?? null}
+          />
           <MentorAccessPending
             request={{
               id: request.id,
@@ -755,13 +1016,45 @@ export default async function DashboardPage({
     }
   }
 
+  if (safeProfile.role === "student") {
+    const assignedMentorId =
+      existingProfile?.mentor_id ?? (await autoAssignMentorIfMissing(user.id));
+
+    if (assignedMentorId) {
+      const { data: mentorProfile } = await supabase
+        .from("profiles")
+        .select("id, name, mobile, telegram_id")
+        .eq("id", assignedMentorId)
+        .maybeSingle<{
+          id: string;
+          name: string | null;
+          mobile: string | null;
+          telegram_id: string | null;
+        }>();
+      assignedMentor = mentorProfile
+        ? {
+            id: mentorProfile.id,
+            name: mentorProfile.name,
+            mobile: mentorProfile.mobile,
+            telegramId: mentorProfile.telegram_id,
+          }
+        : null;
+    }
+  }
+
   return (
     <div className="min-h-screen">
-      <DashboardTopBar roleLabel={safeProfile.role} showBuyPlans />
+      <DashboardTopBar
+        roleLabel={safeProfile.role}
+        showBuyPlans
+        profileName={safeProfile.name}
+        profileMobile={existingProfile?.mobile ?? null}
+        profileTelegramId={existingProfile?.telegram_id ?? null}
+      />
       {safeProfile.role === "mentor" ? (
-        <MentorDashboard profile={safeProfile} boughtPlan={bought} />
+        <MentorDashboard profile={safeProfile} mentorId={user.id} boughtPlan={bought} />
       ) : (
-        <StudentDashboard profile={safeProfile} boughtPlan={bought} />
+        <StudentDashboard profile={safeProfile} assignedMentor={assignedMentor} boughtPlan={bought} />
       )}
     </div>
   );
