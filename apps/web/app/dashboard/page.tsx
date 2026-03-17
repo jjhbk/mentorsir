@@ -21,6 +21,8 @@ interface ProfileWithMentorId extends Profile {
   mentor_id: string | null;
   mobile: string | null;
   telegram_id: string | null;
+  telegram_group_link: string | null;
+  whatsapp_group_link: string | null;
 }
 
 interface MentorSummary {
@@ -2517,7 +2519,7 @@ export default async function DashboardPage({
 
   const { data: existingProfile } = await supabase
     .from("profiles")
-    .select("role, name, mobile, telegram_id, mentor_id")
+    .select("role, name, mobile, telegram_id, telegram_group_link, whatsapp_group_link, mentor_id")
     .eq("id", user.id)
     .maybeSingle<ProfileWithMentorId>();
 
@@ -2587,6 +2589,8 @@ export default async function DashboardPage({
           profileName={safeProfile.name}
           profileMobile={existingProfile?.mobile ?? null}
           profileTelegramId={existingProfile?.telegram_id ?? null}
+          profileTelegramGroupLink={existingProfile?.telegram_group_link ?? null}
+          profileWhatsappGroupLink={existingProfile?.whatsapp_group_link ?? null}
         />
         <AdminDashboard />
       </div>
@@ -2666,6 +2670,8 @@ export default async function DashboardPage({
             profileName={safeProfile.name}
             profileMobile={existingProfile?.mobile ?? null}
             profileTelegramId={existingProfile?.telegram_id ?? null}
+            profileTelegramGroupLink={existingProfile?.telegram_group_link ?? null}
+            profileWhatsappGroupLink={existingProfile?.whatsapp_group_link ?? null}
           />
           <MentorAccessPending
             request={{
@@ -2721,6 +2727,8 @@ export default async function DashboardPage({
         profileName={safeProfile.name}
         profileMobile={existingProfile?.mobile ?? null}
         profileTelegramId={existingProfile?.telegram_id ?? null}
+        profileTelegramGroupLink={existingProfile?.telegram_group_link ?? null}
+        profileWhatsappGroupLink={existingProfile?.whatsapp_group_link ?? null}
       />
       {safeProfile.role === "mentor" ? (
         <MentorDashboard profile={safeProfile} mentorId={user.id} boughtPlan={bought} />

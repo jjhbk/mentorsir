@@ -18,19 +18,20 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.redirect(new URL("/enroll", request.url), { status: 303 });
   }
 
   const formData = await request.formData();
   const name = normalizeText(formData.get("name"));
   const mobile = normalizeText(formData.get("mobile"));
   const telegramId = normalizeText(formData.get("telegramId"));
+  const telegramGroupLink = normalizeText(formData.get("telegramGroupLink"));
+  const whatsappGroupLink = normalizeText(formData.get("whatsappGroupLink"));
 
   if (mobile && !isValidIndianMobile(mobile)) {
-    return NextResponse.json(
-      { error: "Invalid mobile number. Use a valid 10-digit Indian number." },
-      { status: 400 }
-    );
+    return NextResponse.redirect(new URL("/dashboard?profileError=invalid_mobile", request.url), {
+      status: 303,
+    });
   }
 
   const existingProfile = await prisma.profile.findUnique({
@@ -45,6 +46,8 @@ export async function POST(request: NextRequest) {
         name,
         mobile,
         telegramId,
+        telegramGroupLink,
+        whatsappGroupLink,
       },
     });
   } else {
@@ -60,9 +63,11 @@ export async function POST(request: NextRequest) {
           "User",
         mobile,
         telegramId,
+        telegramGroupLink,
+        whatsappGroupLink,
       },
     });
   }
 
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  return NextResponse.redirect(new URL("/dashboard?profileSaved=1", request.url), { status: 303 });
 }

@@ -16,6 +16,8 @@ model Profile {
   name             String?
   mobile           String?
   telegramId       String?  @map("telegram_id")
+  telegramGroupLink String? @map("telegram_group_link")
+  whatsappGroupLink String? @map("whatsapp_group_link")
   medium           String?
   graduationStream String?  @map("graduation_stream")
   mentorId         String?  @map("mentor_id") @db.Uuid
@@ -397,6 +399,20 @@ model ChatMessage {
   @@index([studentId, createdAt])
   @@index([mentorId, createdAt])
   @@map("chat_messages")
+}
+
+// ── Mentor Group Chat ─────────────────────────────────────────────────────────
+// Shared chat between a mentor and all students assigned to that mentor.
+model MentorGroupMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mentorId  String   @map("mentor_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  message   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([mentorId, createdAt])
+  @@index([senderId, createdAt])
+  @@map("mentor_group_messages")
 }
 
 // ── Mentor Meetings ───────────────────────────────────────────────────────────

@@ -17,6 +17,8 @@ export default function DashboardTopBar({
   profileName,
   profileMobile,
   profileTelegramId,
+  profileTelegramGroupLink,
+  profileWhatsappGroupLink,
   initialOpen = false,
 }: {
   roleLabel: string;
@@ -27,6 +29,8 @@ export default function DashboardTopBar({
   profileName?: string | null;
   profileMobile?: string | null;
   profileTelegramId?: string | null;
+  profileTelegramGroupLink?: string | null;
+  profileWhatsappGroupLink?: string | null;
   initialOpen?: boolean;
 }) {
   const [plansOpen, setPlansOpen] = useState(initialOpen);
@@ -237,6 +241,28 @@ export default function DashboardTopBar({
                   className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
                 />
               </label>
+              {isMentor ? (
+                <>
+                  <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                    Telegram Group Link
+                    <input
+                      name="telegramGroupLink"
+                      defaultValue={profileTelegramGroupLink ?? ""}
+                      placeholder="https://t.me/your_group"
+                      className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                    WhatsApp Group Link
+                    <input
+                      name="whatsappGroupLink"
+                      defaultValue={profileWhatsappGroupLink ?? ""}
+                      placeholder="https://chat.whatsapp.com/..."
+                      className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                    />
+                  </label>
+                </>
+              ) : null}
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <button
                   type="submit"
