@@ -142,7 +142,7 @@ export default function DashboardTopBar({
                 }}
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text transition hover:border-primary"
               >
-                Schedule Meeting
+                {isMentor ? "Schedule Meeting" : "Request Meeting"}
               </button>
             ) : null}
             {showChat && currentUserId ? (
@@ -324,7 +324,9 @@ export default function DashboardTopBar({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Meetings</p>
-                <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-text">Schedule a Meeting</h2>
+                <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-text">
+                  {isMentor ? "Schedule a Meeting" : "Request a Meeting"}
+                </h2>
               </div>
               <button
                 type="button"
@@ -336,6 +338,7 @@ export default function DashboardTopBar({
             </div>
 
             <form action="/api/meetings" method="post" className="mt-6 grid gap-3">
+              <input type="hidden" name="action" value="create" />
               {isMentor ? (
                 <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
                   Student
@@ -374,15 +377,17 @@ export default function DashboardTopBar({
                   className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
                 />
               </label>
-              <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
-                Meeting Link
-                <input
-                  name="meetingLink"
-                  type="url"
-                  placeholder="https://meet.google.com/..."
-                  className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
-                />
-              </label>
+              {isMentor ? (
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                  Meeting Link
+                  <input
+                    name="meetingLink"
+                    type="url"
+                    placeholder="https://meet.google.com/..."
+                    className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                  />
+                </label>
+              ) : null}
               <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
                 Agenda
                 <input
@@ -396,7 +401,7 @@ export default function DashboardTopBar({
                   type="submit"
                   className="inline-flex rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-primary-dark"
                 >
-                  Create Meeting
+                  {isMentor ? "Create Meeting" : "Request Meeting"}
                 </button>
               </div>
             </form>

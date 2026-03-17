@@ -12,7 +12,8 @@ export interface DailySubmissionItem {
   sleepTime: string | null;
   wakeTime: string | null;
   afternoonNapMinutes: number;
-  hadMentorDiscussion: boolean;
+  reasonNotStudying: string | null;
+  feelingToday: string | null;
   relaxationActivity: string | null;
   taskCompleted: string | null;
 }
@@ -86,10 +87,8 @@ export function DailySubmissionsList({ items }: { items: DailySubmissionItem[] }
               <DetailCard label="Sleep Time" value={selected.sleepTime ?? "-"} />
               <DetailCard label="Wake Time" value={selected.wakeTime ?? "-"} />
               <DetailCard label="Afternoon Nap" value={`${selected.afternoonNapMinutes}m`} />
-              <DetailCard
-                label="1-to-1 Discussion"
-                value={selected.hadMentorDiscussion ? "Yes" : "No"}
-              />
+              <DetailCard label="Feeling Today" value={selected.feelingToday ?? "-"} />
+              <DetailCard label="Reason Not Studying" value={selected.reasonNotStudying ?? "-"} />
               <DetailCard label="Relaxation Activity" value={selected.relaxationActivity ?? "-"} />
             </div>
           </div>

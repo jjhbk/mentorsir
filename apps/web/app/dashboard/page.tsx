@@ -75,6 +75,14 @@ interface StudentMentorAssignmentRecord {
 
 interface StudentTodayLogRecord {
   studyHours: number;
+  sleepHours: number;
+  meditationMinutes: number;
+  sleepTime: string | null;
+  wakeTime: string | null;
+  afternoonNapMinutes: number;
+  reasonNotStudying: string | null;
+  feelingToday: string | null;
+  relaxationActivity: string | null;
   taskCompleted: "yes" | "no" | "partial" | null;
 }
 
@@ -110,7 +118,8 @@ interface StudentDailyHistoryRecord {
   sleepTime: string | null;
   wakeTime: string | null;
   afternoonNapMinutes: number;
-  hadMentorDiscussion: boolean;
+  reasonNotStudying: string | null;
+  feelingToday: string | null;
   relaxationActivity: string | null;
   taskCompleted: "yes" | "no" | "partial" | null;
 }
@@ -122,6 +131,9 @@ interface YearlyPlanRecord {
   subject2: string | null;
   subject3: string | null;
   notes: string | null;
+  isLocked: boolean;
+  studentEditRequestPending: boolean;
+  studentEditRequestNote: string | null;
 }
 
 interface AlternateScheduleRecord {
@@ -157,7 +169,8 @@ interface MentorStudentLogRecord {
   sleepTime: string | null;
   wakeTime: string | null;
   afternoonNapMinutes: number;
-  hadMentorDiscussion: boolean;
+  reasonNotStudying: string | null;
+  feelingToday: string | null;
   relaxationActivity: string | null;
   taskCompleted: string | null;
 }
@@ -181,20 +194,27 @@ interface MentorStudentTestRecord {
 
 interface MentorStudentPlanRecord {
   id: string;
+  userId: string;
   studentName: string | null;
   month: string;
   subject1: string | null;
   subject2: string | null;
   subject3: string | null;
+  notes: string | null;
+  isLocked: boolean;
+  studentEditRequestPending: boolean;
+  studentEditRequestNote: string | null;
 }
 
 interface StudentMeetingRecord {
   id: string;
   scheduledAt: string;
+  status: "pending" | "approved" | "rejected";
   mode: string | null;
   meetingLink: string | null;
   agenda: string | null;
   studentNotes: string | null;
+  rejectionReason: string | null;
 }
 
 interface MentorMeetingRecord {
@@ -202,10 +222,12 @@ interface MentorMeetingRecord {
   studentId: string;
   studentName: string | null;
   scheduledAt: string;
+  status: "pending" | "approved" | "rejected";
   mode: string | null;
   meetingLink: string | null;
   agenda: string | null;
   mentorNotes: string | null;
+  rejectionReason: string | null;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -292,6 +314,54 @@ function formatValue(value: unknown): string {
   return text.trim() ? text : "-";
 }
 
+function StudyHoursHistoryGraph({
+  points,
+}: {
+  points: Array<{ date: string; studyHours: number }>;
+}) {
+  const width = 760;
+  const height = 220;
+  const padding = 30;
+  const maxY = Math.max(1, ...points.map((item) => item.studyHours));
+  const denominator = Math.max(1, points.length - 1);
+
+  const plotPoints = points.map((item, index) => {
+    const x = padding + (index / denominator) * (width - padding * 2);
+    const y = height - padding - (item.studyHours / maxY) * (height - padding * 2);
+    return { ...item, x, y };
+  });
+  const polyline = plotPoints.map((point) => `${point.x},${point.y}`).join(" ");
+
+  return (
+    <div className="mb-4 rounded-2xl border border-border bg-surface p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+        Study Hours Trend
+      </p>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-56 min-w-[760px] w-full">
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#d6d6d8" strokeWidth="1" />
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#d6d6d8" strokeWidth="1" />
+          <polyline fill="none" stroke="#0ea5e9" strokeWidth="2.5" points={polyline} />
+          {plotPoints.map((point) => (
+            <g key={`${point.date}-${point.x}`}>
+              <circle cx={point.x} cy={point.y} r="3.5" fill="#0ea5e9" />
+              <text x={point.x} y={height - padding + 14} textAnchor="middle" fontSize="10" fill="#6b7280">
+                {point.date.slice(5)}
+              </text>
+            </g>
+          ))}
+          <text x={padding - 8} y={padding + 4} textAnchor="end" fontSize="10" fill="#6b7280">
+            {maxY}h
+          </text>
+          <text x={padding - 8} y={height - padding + 4} textAnchor="end" fontSize="10" fill="#6b7280">
+            0h
+          </text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function IntakeField({ label, value }: { label: string; value: unknown }) {
   return (
     <div className="rounded-xl border border-border/70 bg-surface px-3 py-2">
@@ -318,6 +388,14 @@ async function StudentDashboard({
     prisma.$queryRaw<StudentTodayLogRecord[]>`
       SELECT
         study_hours::float AS "studyHours",
+        sleep_hours::float AS "sleepHours",
+        meditation_minutes AS "meditationMinutes",
+        sleep_time AS "sleepTime",
+        wake_time AS "wakeTime",
+        afternoon_nap_minutes AS "afternoonNapMinutes",
+        reason_not_studying AS "reasonNotStudying",
+        feeling_today AS "feelingToday",
+        relaxation_activity AS "relaxationActivity",
         task_completed::text AS "taskCompleted"
       FROM daily_logs
       WHERE user_id = ${userId}::uuid
@@ -366,7 +444,8 @@ async function StudentDashboard({
         sleep_time AS "sleepTime",
         wake_time AS "wakeTime",
         afternoon_nap_minutes AS "afternoonNapMinutes",
-        had_mentor_discussion AS "hadMentorDiscussion",
+        reason_not_studying AS "reasonNotStudying",
+        feeling_today AS "feelingToday",
         relaxation_activity AS "relaxationActivity",
         task_completed::text AS "taskCompleted"
       FROM daily_logs
@@ -381,7 +460,10 @@ async function StudentDashboard({
         subject_1 AS "subject1",
         subject_2 AS "subject2",
         subject_3 AS "subject3",
-        notes
+        notes,
+        is_locked AS "isLocked",
+        student_edit_request_pending AS "studentEditRequestPending",
+        student_edit_request_note AS "studentEditRequestNote"
       FROM yearly_plan_entries
       WHERE user_id = ${userId}::uuid
       ORDER BY month ASC
@@ -402,10 +484,12 @@ async function StudentDashboard({
       SELECT
         id,
         scheduled_at::text AS "scheduledAt",
+        status::text AS "status",
         mode,
         meeting_link AS "meetingLink",
         agenda,
-        student_notes AS "studentNotes"
+        student_notes AS "studentNotes",
+        rejection_reason AS "rejectionReason"
       FROM mentor_meetings
       WHERE student_id = ${userId}::uuid
       ORDER BY scheduled_at DESC
@@ -588,7 +672,7 @@ async function StudentDashboard({
                 step="0.5"
                 min="0"
                 name="sleepHours"
-                defaultValue={0}
+                defaultValue={log?.sleepHours ?? 0}
                 className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
               />
             </label>
@@ -598,7 +682,7 @@ async function StudentDashboard({
                 type="number"
                 min="0"
                 name="meditationMinutes"
-                defaultValue={0}
+                defaultValue={log?.meditationMinutes ?? 0}
                 className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
               />
             </label>
@@ -606,6 +690,7 @@ async function StudentDashboard({
               Sleep Time
               <input
                 name="sleepTime"
+                defaultValue={log?.sleepTime ?? ""}
                 placeholder="11:30 PM"
                 className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
               />
@@ -614,6 +699,7 @@ async function StudentDashboard({
               Wake Time
               <input
                 name="wakeTime"
+                defaultValue={log?.wakeTime ?? ""}
                 placeholder="6:00 AM"
                 className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
               />
@@ -637,18 +723,33 @@ async function StudentDashboard({
                 type="number"
                 min="0"
                 name="afternoonNapMinutes"
-                defaultValue={0}
+                defaultValue={log?.afternoonNapMinutes ?? 0}
                 className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
               />
             </label>
-            <label className="flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-text-muted">
-              <input type="checkbox" name="hadMentorDiscussion" className="h-4 w-4 rounded border-border" />
-              1-to-1 Discussion Done
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              How Are You Feeling Today?
+              <input
+                name="feelingToday"
+                defaultValue={log?.feelingToday ?? ""}
+                placeholder="Focused / tired / stressed / motivated..."
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Reason for Not Studying Today (if any)
+              <input
+                name="reasonNotStudying"
+                defaultValue={log?.reasonNotStudying ?? ""}
+                placeholder="Travel, health issue, family work..."
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
             </label>
             <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted md:col-span-3">
               Relaxation Activity
               <input
                 name="relaxationActivity"
+                defaultValue={log?.relaxationActivity ?? ""}
                 placeholder="Journalling, workout, walk..."
                 className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
               />
@@ -809,6 +910,7 @@ async function StudentDashboard({
               tone="student"
             />
             <form action="/api/yearly-plan" method="post" className="grid gap-2">
+              <input type="hidden" name="action" value="save" />
               <input name="month" placeholder="JAN / FEB / MAR" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
               <input name="subject1" placeholder="Subject 1" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
               <input name="subject2" placeholder="Subject 2" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
@@ -821,8 +923,57 @@ async function StudentDashboard({
             <ul className="mt-4 space-y-2">
               {yearlyPlan.map((entry) => (
                 <li key={entry.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
-                  <span className="font-semibold text-text">{entry.month}</span>{" "}
-                  {formatValue([entry.subject1, entry.subject2, entry.subject3].filter(Boolean))}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-text">{entry.month}</span>
+                    <span>
+                      {formatValue([entry.subject1, entry.subject2, entry.subject3].filter(Boolean))}
+                    </span>
+                    {entry.isLocked ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                        Fixed
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                        Editable
+                      </span>
+                    )}
+                    {entry.studentEditRequestPending ? (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-700">
+                        Edit Request Pending
+                      </span>
+                    ) : null}
+                  </div>
+                  {entry.notes ? <p className="mt-1 text-[11px] text-text-muted">{entry.notes}</p> : null}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {!entry.isLocked ? (
+                      <form action="/api/yearly-plan" method="post">
+                        <input type="hidden" name="action" value="lock" />
+                        <input type="hidden" name="month" value={entry.month} />
+                        <button
+                          type="submit"
+                          className="inline-flex rounded-full border border-border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-text"
+                        >
+                          Fix This Month
+                        </button>
+                      </form>
+                    ) : (
+                      <form action="/api/yearly-plan" method="post" className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="action" value="request-edit" />
+                        <input type="hidden" name="month" value={entry.month} />
+                        <input
+                          name="requestNote"
+                          placeholder="Why do you need an edit?"
+                          className="rounded-xl border border-border bg-white px-2 py-1 text-[11px] text-text"
+                        />
+                        <button
+                          type="submit"
+                          className="inline-flex rounded-full border border-border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-text"
+                        >
+                          Request Edit
+                        </button>
+                      </form>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -856,7 +1007,7 @@ async function StudentDashboard({
         <Panel title="Upcoming Meetings">
           <SectionLead
             title="7. Upcoming Meetings"
-            subtitle="Meetings created by you or your mentor appear here. Use the dropdown to manage private notes."
+            subtitle="You can request meetings. Final confirmation happens only after mentor approval."
             tag="Shared"
             tone="shared"
           />
@@ -869,9 +1020,29 @@ async function StudentDashboard({
                   <p className="text-sm font-semibold text-text">
                     {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
                   </p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {meeting.status === "approved" ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                        Approved
+                      </span>
+                    ) : null}
+                    {meeting.status === "pending" ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                        Awaiting Mentor Approval
+                      </span>
+                    ) : null}
+                    {meeting.status === "rejected" ? (
+                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-700">
+                        Rejected
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-xs text-text-muted">
                     {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
                   </p>
+                  {meeting.status === "rejected" && meeting.rejectionReason ? (
+                    <p className="mt-1 text-xs text-danger">Reason: {meeting.rejectionReason}</p>
+                  ) : null}
                   {meeting.meetingLink ? (
                     <a
                       href={meeting.meetingLink}
@@ -928,39 +1099,48 @@ async function StudentDashboard({
           {dailyHistory.length === 0 ? (
             <p className="text-sm text-text-muted">No daily logs yet.</p>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[1100px] text-sm">
-                <thead className="bg-surface-soft">
-                  <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Study</th>
-                    <th className="px-4 py-3">Sleep</th>
-                    <th className="px-4 py-3">Meditation</th>
-                    <th className="px-4 py-3">Task</th>
-                    <th className="px-4 py-3">Sleep Time</th>
-                    <th className="px-4 py-3">Wake Time</th>
-                    <th className="px-4 py-3">Nap</th>
-                    <th className="px-4 py-3">1-to-1</th>
-                    <th className="px-4 py-3">Relaxation</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dailyHistory.map((row) => (
-                    <tr key={row.id} className="border-t border-border bg-white">
-                      <td className="px-4 py-3">{row.date}</td>
-                      <td className="px-4 py-3">{row.studyHours}h</td>
-                      <td className="px-4 py-3">{row.sleepHours}h</td>
-                      <td className="px-4 py-3">{row.meditationMinutes}m</td>
-                      <td className="px-4 py-3">{row.taskCompleted ?? "-"}</td>
-                      <td className="px-4 py-3">{row.sleepTime ?? "-"}</td>
-                      <td className="px-4 py-3">{row.wakeTime ?? "-"}</td>
-                      <td className="px-4 py-3">{row.afternoonNapMinutes}m</td>
-                      <td className="px-4 py-3">{row.hadMentorDiscussion ? "Yes" : "No"}</td>
-                      <td className="px-4 py-3">{row.relaxationActivity ?? "-"}</td>
+            <div>
+              <StudyHoursHistoryGraph
+                points={[...dailyHistory]
+                  .reverse()
+                  .map((row) => ({ date: row.date, studyHours: row.studyHours }))}
+              />
+              <div className="overflow-x-auto rounded-2xl border border-border">
+                <table className="w-full min-w-[1100px] text-sm">
+                  <thead className="bg-surface-soft">
+                    <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Study</th>
+                      <th className="px-4 py-3">Sleep</th>
+                      <th className="px-4 py-3">Meditation</th>
+                      <th className="px-4 py-3">Task</th>
+                      <th className="px-4 py-3">Sleep Time</th>
+                      <th className="px-4 py-3">Wake Time</th>
+                      <th className="px-4 py-3">Nap</th>
+                      <th className="px-4 py-3">Feeling</th>
+                      <th className="px-4 py-3">Reason Not Studying</th>
+                      <th className="px-4 py-3">Relaxation</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {dailyHistory.map((row) => (
+                      <tr key={row.id} className="border-t border-border bg-white">
+                        <td className="px-4 py-3">{row.date}</td>
+                        <td className="px-4 py-3">{row.studyHours}h</td>
+                        <td className="px-4 py-3">{row.sleepHours}h</td>
+                        <td className="px-4 py-3">{row.meditationMinutes}m</td>
+                        <td className="px-4 py-3">{row.taskCompleted ?? "-"}</td>
+                        <td className="px-4 py-3">{row.sleepTime ?? "-"}</td>
+                        <td className="px-4 py-3">{row.wakeTime ?? "-"}</td>
+                        <td className="px-4 py-3">{row.afternoonNapMinutes}m</td>
+                        <td className="px-4 py-3">{row.feelingToday ?? "-"}</td>
+                        <td className="px-4 py-3">{row.reasonNotStudying ?? "-"}</td>
+                        <td className="px-4 py-3">{row.relaxationActivity ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </Panel>
@@ -1096,7 +1276,8 @@ async function MentorDashboard({
         l.sleep_time AS "sleepTime",
         l.wake_time AS "wakeTime",
         l.afternoon_nap_minutes AS "afternoonNapMinutes",
-        l.had_mentor_discussion AS "hadMentorDiscussion",
+        l.reason_not_studying AS "reasonNotStudying",
+        l.feeling_today AS "feelingToday",
         l.relaxation_activity AS "relaxationActivity",
         l.task_completed::text AS "taskCompleted"
       FROM daily_logs l
@@ -1130,11 +1311,16 @@ async function MentorDashboard({
     prisma.$queryRaw<MentorStudentPlanRecord[]>`
       SELECT
         y.id,
+        y.user_id AS "userId",
         p.name AS "studentName",
         y.month,
         y.subject_1 AS "subject1",
         y.subject_2 AS "subject2",
-        y.subject_3 AS "subject3"
+        y.subject_3 AS "subject3",
+        y.notes,
+        y.is_locked AS "isLocked",
+        y.student_edit_request_pending AS "studentEditRequestPending",
+        y.student_edit_request_note AS "studentEditRequestNote"
       FROM yearly_plan_entries y
       JOIN profiles p ON p.id = y.user_id
       WHERE p.mentor_id = ${mentorId}::uuid
@@ -1147,10 +1333,12 @@ async function MentorDashboard({
         m.student_id AS "studentId",
         p.name AS "studentName",
         m.scheduled_at::text AS "scheduledAt",
+        m.status::text AS "status",
         m.mode,
         m.meeting_link AS "meetingLink",
         m.agenda,
-        m.mentor_notes AS "mentorNotes"
+        m.mentor_notes AS "mentorNotes",
+        m.rejection_reason AS "rejectionReason"
       FROM mentor_meetings m
       JOIN profiles p ON p.id = m.student_id
       WHERE m.mentor_id = ${mentorId}::uuid
@@ -1377,6 +1565,8 @@ async function MentorDashboard({
                   <th className="px-4 py-3">Student</th>
                   <th className="px-4 py-3">Month</th>
                   <th className="px-4 py-3">Subjects</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1385,7 +1575,92 @@ async function MentorDashboard({
                     <td className="px-4 py-3">{row.studentName ?? "-"}</td>
                     <td className="px-4 py-3">{row.month}</td>
                     <td className="px-4 py-3 text-text-muted">
-                      {formatValue([row.subject1, row.subject2, row.subject3].filter(Boolean))}
+                      <form action="/api/yearly-plan" method="post" className="grid gap-2">
+                        <input type="hidden" name="action" value="save" />
+                        <input type="hidden" name="targetUserId" value={row.userId} />
+                        <input type="hidden" name="month" value={row.month} />
+                        <input
+                          name="subject1"
+                          defaultValue={row.subject1 ?? ""}
+                          placeholder="Subject 1"
+                          className="rounded-xl border border-border bg-white px-2 py-1 text-xs text-text"
+                        />
+                        <input
+                          name="subject2"
+                          defaultValue={row.subject2 ?? ""}
+                          placeholder="Subject 2"
+                          className="rounded-xl border border-border bg-white px-2 py-1 text-xs text-text"
+                        />
+                        <input
+                          name="subject3"
+                          defaultValue={row.subject3 ?? ""}
+                          placeholder="Subject 3"
+                          className="rounded-xl border border-border bg-white px-2 py-1 text-xs text-text"
+                        />
+                        <input
+                          name="notes"
+                          defaultValue={row.notes ?? ""}
+                          placeholder="Notes"
+                          className="rounded-xl border border-border bg-white px-2 py-1 text-xs text-text"
+                        />
+                        <button
+                          type="submit"
+                          className="inline-flex w-fit rounded-full border border-border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-text"
+                        >
+                          Save Mentor Edit
+                        </button>
+                      </form>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {row.isLocked ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                            Fixed
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                            Editable
+                          </span>
+                        )}
+                        {row.studentEditRequestPending ? (
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-700">
+                            Request Pending
+                          </span>
+                        ) : null}
+                      </div>
+                      {row.studentEditRequestNote ? (
+                        <p className="mt-1 text-[11px] text-text-muted">{row.studentEditRequestNote}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {row.studentEditRequestPending ? (
+                          <form action="/api/yearly-plan" method="post">
+                            <input type="hidden" name="action" value="approve-edit" />
+                            <input type="hidden" name="targetUserId" value={row.userId} />
+                            <input type="hidden" name="month" value={row.month} />
+                            <button
+                              type="submit"
+                              className="inline-flex rounded-full bg-primary px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
+                            >
+                              Approve Edit Request
+                            </button>
+                          </form>
+                        ) : null}
+                        {!row.isLocked ? (
+                          <form action="/api/yearly-plan" method="post">
+                            <input type="hidden" name="action" value="lock" />
+                            <input type="hidden" name="targetUserId" value={row.userId} />
+                            <input type="hidden" name="month" value={row.month} />
+                            <button
+                              type="submit"
+                              className="inline-flex rounded-full border border-border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-text"
+                            >
+                              Fix Month Plan
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1398,7 +1673,7 @@ async function MentorDashboard({
       <Panel title="Upcoming Meetings">
         <SectionLead
           title="7. Upcoming Meetings"
-          subtitle="Meetings created by you or students appear here. Use the dropdown to capture private notes."
+          subtitle="Review student requests, confirm your available time, then approve or reject."
           tag="Shared"
           tone="shared"
         />
@@ -1411,9 +1686,87 @@ async function MentorDashboard({
                 <p className="text-sm font-semibold text-text">
                   {meeting.studentName ?? "-"} · {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
                 </p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {meeting.status === "approved" ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                      Approved
+                    </span>
+                  ) : null}
+                  {meeting.status === "pending" ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                      Student Request Pending
+                    </span>
+                  ) : null}
+                  {meeting.status === "rejected" ? (
+                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-700">
+                      Rejected
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-1 text-xs text-text-muted">
                   {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
                 </p>
+                {meeting.status === "rejected" && meeting.rejectionReason ? (
+                  <p className="mt-1 text-xs text-danger">Reason: {meeting.rejectionReason}</p>
+                ) : null}
+                {meeting.status === "pending" ? (
+                  <div className="mt-3 grid gap-2 rounded-xl border border-border bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                      Confirm Availability
+                    </p>
+                    <form action="/api/meetings" method="post" className="grid gap-2">
+                      <input type="hidden" name="action" value="approve" />
+                      <input type="hidden" name="meetingId" value={meeting.id} />
+                      <input
+                        type="datetime-local"
+                        name="scheduledAt"
+                        defaultValue={new Date(meeting.scheduledAt).toISOString().slice(0, 16)}
+                        required
+                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                      />
+                      <input
+                        name="mode"
+                        defaultValue={meeting.mode ?? ""}
+                        placeholder="call / online / in-person"
+                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                      />
+                      <input
+                        name="meetingLink"
+                        type="url"
+                        defaultValue={meeting.meetingLink ?? ""}
+                        placeholder="https://meet.google.com/..."
+                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                      />
+                      <input
+                        name="agenda"
+                        defaultValue={meeting.agenda ?? ""}
+                        placeholder="Discussion topics"
+                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex w-fit rounded-full bg-primary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
+                      >
+                        Approve Meeting
+                      </button>
+                    </form>
+                    <form action="/api/meetings" method="post" className="grid gap-2">
+                      <input type="hidden" name="action" value="reject" />
+                      <input type="hidden" name="meetingId" value={meeting.id} />
+                      <input
+                        name="rejectionReason"
+                        placeholder="Reason for rejection (optional)"
+                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex w-fit rounded-full border border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-text"
+                      >
+                        Reject Meeting
+                      </button>
+                    </form>
+                  </div>
+                ) : null}
                 {meeting.meetingLink ? (
                   <a
                     href={meeting.meetingLink}

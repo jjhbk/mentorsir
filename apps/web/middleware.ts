@@ -51,6 +51,16 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
+    const { data: intakeForm } = await supabase
+      .from('intake_forms')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle<{ id: string }>();
+
+    if (intakeForm) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
     return NextResponse.redirect(new URL('/enroll', request.url));
   }
 
@@ -67,6 +77,16 @@ export async function middleware(request: NextRequest) {
       .maybeSingle<{ role: 'student' | 'mentor' }>();
 
     if (profile?.role === 'mentor') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    const { data: intakeForm } = await supabase
+      .from('intake_forms')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle<{ id: string }>();
+
+    if (intakeForm) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }

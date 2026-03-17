@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
   const sleepTime = toText(form.get("sleepTime"));
   const wakeTime = toText(form.get("wakeTime"));
   const afternoonNapMinutes = toInt(form.get("afternoonNapMinutes"));
-  const hadMentorDiscussion = form.get("hadMentorDiscussion") === "on";
+  const reasonNotStudying = toText(form.get("reasonNotStudying"));
+  const feelingToday = toText(form.get("feelingToday"));
   const relaxationActivity = toText(form.get("relaxationActivity"));
   const taskCompletedRaw = form.get("taskCompleted")?.toString() ?? "";
   const taskCompleted =
@@ -52,7 +53,8 @@ export async function POST(request: NextRequest) {
       wake_time,
       task_completed,
       afternoon_nap_minutes,
-      had_mentor_discussion,
+      reason_not_studying,
+      feeling_today,
       relaxation_activity
     )
     VALUES (
@@ -65,7 +67,8 @@ export async function POST(request: NextRequest) {
       ${wakeTime},
       ${taskCompleted}::"TaskStatus",
       ${afternoonNapMinutes},
-      ${hadMentorDiscussion},
+      ${reasonNotStudying},
+      ${feelingToday},
       ${relaxationActivity}
     )
     ON CONFLICT (user_id, date)
@@ -77,7 +80,8 @@ export async function POST(request: NextRequest) {
       wake_time = EXCLUDED.wake_time,
       task_completed = EXCLUDED.task_completed,
       afternoon_nap_minutes = EXCLUDED.afternoon_nap_minutes,
-      had_mentor_discussion = EXCLUDED.had_mentor_discussion,
+      reason_not_studying = EXCLUDED.reason_not_studying,
+      feeling_today = EXCLUDED.feeling_today,
       relaxation_activity = EXCLUDED.relaxation_activity
   `;
 

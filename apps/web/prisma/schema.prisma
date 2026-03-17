@@ -64,6 +64,12 @@ enum SeedhaPeOrderStatus {
   rejected
 }
 
+enum MeetingApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
 // ── Intake Forms ───────────────────────────────────────────────────────────────
 // 27-field enrollment questionnaire
 model IntakeForm {
@@ -115,7 +121,8 @@ model DailyLog {
   wakeTime              String?       @map("wake_time")
   taskCompleted         TaskStatus?   @map("task_completed")
   afternoonNapMinutes   Int           @default(0) @map("afternoon_nap_minutes")
-  hadMentorDiscussion   Boolean       @default(false) @map("had_mentor_discussion")
+  reasonNotStudying     String?       @map("reason_not_studying")
+  feelingToday          String?       @map("feeling_today")
   relaxationActivity    String?       @map("relaxation_activity")
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz
 
@@ -294,15 +301,20 @@ model ResourceMappingEntry {
 // ── Yearly Plan ──────────────────────────────────────────────────────────────
 // Student yearly plan rows with up to three subject focuses per month.
 model YearlyPlanEntry {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  month     String
-  subject1  String?  @map("subject_1")
-  subject2  String?  @map("subject_2")
-  subject3  String?  @map("subject_3")
-  notes     String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                         String    @map("user_id") @db.Uuid
+  month                          String
+  subject1                       String?   @map("subject_1")
+  subject2                       String?   @map("subject_2")
+  subject3                       String?   @map("subject_3")
+  notes                          String?
+  isLocked                       Boolean   @default(false) @map("is_locked")
+  studentEditRequestPending      Boolean   @default(false) @map("student_edit_request_pending")
+  studentEditRequestNote         String?   @map("student_edit_request_note")
+  studentEditRequestRequestedAt  DateTime? @map("student_edit_request_requested_at") @db.Timestamptz
+  studentEditRequestReviewedAt   DateTime? @map("student_edit_request_reviewed_at") @db.Timestamptz
+  createdAt                      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -351,11 +363,15 @@ model MentorMeeting {
   mentorId       String   @map("mentor_id") @db.Uuid
   studentId      String   @map("student_id") @db.Uuid
   scheduledAt    DateTime @map("scheduled_at") @db.Timestamptz
+  status         MeetingApprovalStatus @default(pending)
   mode           String?  // online / call / in-person
   meetingLink    String?  @map("meeting_link")
   agenda         String?
   studentNotes   String?  @map("student_notes")
   mentorNotes    String?  @map("mentor_notes")
+  reviewedAt     DateTime? @map("reviewed_at") @db.Timestamptz
+  reviewedBy     String?   @map("reviewed_by") @db.Uuid
+  rejectionReason String?  @map("rejection_reason")
   createdBy      String   @map("created_by") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
