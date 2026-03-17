@@ -343,3 +343,25 @@ model ChatMessage {
   @@index([mentorId, createdAt])
   @@map("chat_messages")
 }
+
+// ── Mentor Meetings ───────────────────────────────────────────────────────────
+// Scheduled mentor-student meetings and private notes from both sides.
+model MentorMeeting {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mentorId       String   @map("mentor_id") @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  scheduledAt    DateTime @map("scheduled_at") @db.Timestamptz
+  mode           String?  // online / call / in-person
+  meetingLink    String?  @map("meeting_link")
+  agenda         String?
+  studentNotes   String?  @map("student_notes")
+  mentorNotes    String?  @map("mentor_notes")
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([mentorId, scheduledAt])
+  @@index([studentId, scheduledAt])
+  @@index([mentorId, studentId, scheduledAt])
+  @@map("mentor_meetings")
+}

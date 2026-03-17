@@ -5,6 +5,10 @@ import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { autoAssignMentorIfMissing } from "@/lib/mentorAssignment";
 import DashboardTopBar from "@/components/dashboard/DashboardTopBar";
+import {
+  DailySubmissionsList,
+  TestSubmissionsList,
+} from "@/components/dashboard/MentorSubmissionsList";
 
 interface Profile {
   role: "student" | "mentor";
@@ -87,13 +91,27 @@ interface StudentTestRecord {
   date: string;
   score: number | null;
   totalQuestions: number | null;
+  mistakeConceptual: number;
+  mistakeRecall: number;
+  mistakeReading: number;
+  mistakeElimination: number;
+  mistakeDecisionMaking: number;
+  mistakeSilly: number;
+  mistakePsychological: number;
+  mistakePatternMisjudgment: number;
 }
 
 interface StudentDailyHistoryRecord {
+  id: string;
   date: string;
   studyHours: number;
   sleepHours: number;
   meditationMinutes: number;
+  sleepTime: string | null;
+  wakeTime: string | null;
+  afternoonNapMinutes: number;
+  hadMentorDiscussion: boolean;
+  relaxationActivity: string | null;
   taskCompleted: "yes" | "no" | "partial" | null;
 }
 
@@ -135,6 +153,12 @@ interface MentorStudentLogRecord {
   date: string;
   studyHours: number;
   sleepHours: number;
+  meditationMinutes: number;
+  sleepTime: string | null;
+  wakeTime: string | null;
+  afternoonNapMinutes: number;
+  hadMentorDiscussion: boolean;
+  relaxationActivity: string | null;
   taskCompleted: string | null;
 }
 
@@ -145,6 +169,14 @@ interface MentorStudentTestRecord {
   date: string;
   score: number | null;
   totalQuestions: number | null;
+  mistakeConceptual: number;
+  mistakeRecall: number;
+  mistakeReading: number;
+  mistakeElimination: number;
+  mistakeDecisionMaking: number;
+  mistakeSilly: number;
+  mistakePsychological: number;
+  mistakePatternMisjudgment: number;
 }
 
 interface MentorStudentPlanRecord {
@@ -154,6 +186,26 @@ interface MentorStudentPlanRecord {
   subject1: string | null;
   subject2: string | null;
   subject3: string | null;
+}
+
+interface StudentMeetingRecord {
+  id: string;
+  scheduledAt: string;
+  mode: string | null;
+  meetingLink: string | null;
+  agenda: string | null;
+  studentNotes: string | null;
+}
+
+interface MentorMeetingRecord {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  scheduledAt: string;
+  mode: string | null;
+  meetingLink: string | null;
+  agenda: string | null;
+  mentorNotes: string | null;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -262,10 +314,10 @@ async function StudentDashboard({
 }) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [todayLogs, upcoming, tests, dailyHistory, yearlyPlan, alternateSchedule] = await Promise.all([
+  const [todayLogs, upcoming, tests, dailyHistory, yearlyPlan, alternateSchedule, meetings] = await Promise.all([
     prisma.$queryRaw<StudentTodayLogRecord[]>`
       SELECT
-        study_hours AS "studyHours",
+        study_hours::float AS "studyHours",
         task_completed::text AS "taskCompleted"
       FROM daily_logs
       WHERE user_id = ${userId}::uuid
@@ -290,7 +342,15 @@ async function StudentDashboard({
         test_name AS "testName",
         date::text AS "date",
         score::float AS "score",
-        total_questions AS "totalQuestions"
+        total_questions AS "totalQuestions",
+        mistake_conceptual AS "mistakeConceptual",
+        mistake_recall AS "mistakeRecall",
+        mistake_reading AS "mistakeReading",
+        mistake_elimination AS "mistakeElimination",
+        mistake_decision_making AS "mistakeDecisionMaking",
+        mistake_silly AS "mistakeSilly",
+        mistake_psychological AS "mistakePsychological",
+        mistake_pattern_misjudgment AS "mistakePatternMisjudgment"
       FROM test_results
       WHERE user_id = ${userId}::uuid
       ORDER BY date DESC
@@ -298,10 +358,16 @@ async function StudentDashboard({
     `,
     prisma.$queryRaw<StudentDailyHistoryRecord[]>`
       SELECT
+        id,
         date::text AS "date",
         study_hours::float AS "studyHours",
         sleep_hours::float AS "sleepHours",
         meditation_minutes AS "meditationMinutes",
+        sleep_time AS "sleepTime",
+        wake_time AS "wakeTime",
+        afternoon_nap_minutes AS "afternoonNapMinutes",
+        had_mentor_discussion AS "hadMentorDiscussion",
+        relaxation_activity AS "relaxationActivity",
         task_completed::text AS "taskCompleted"
       FROM daily_logs
       WHERE user_id = ${userId}::uuid
@@ -331,6 +397,19 @@ async function StudentDashboard({
       WHERE user_id = ${userId}::uuid
       ORDER BY date DESC, created_at DESC
       LIMIT 10
+    `,
+    prisma.$queryRaw<StudentMeetingRecord[]>`
+      SELECT
+        id,
+        scheduled_at::text AS "scheduledAt",
+        mode,
+        meeting_link AS "meetingLink",
+        agenda,
+        student_notes AS "studentNotes"
+      FROM mentor_meetings
+      WHERE student_id = ${userId}::uuid
+      ORDER BY scheduled_at DESC
+      LIMIT 12
     `,
   ]);
   const log = todayLogs[0];
@@ -608,7 +687,7 @@ async function StudentDashboard({
             )}
           </Panel>
 
-          <Panel title="Test History">
+        <Panel title="Test History">
             <SectionLead
               title="3. Previous Test Records"
               subtitle="Your submitted tests and score trend."
@@ -623,8 +702,8 @@ async function StudentDashboard({
                       ? Math.round((test.score / test.totalQuestions) * 100)
                       : null;
                   return (
-                    <li key={test.id} className="rounded-2xl border border-border bg-surface p-4">
-                      <div className="flex items-start justify-between gap-3">
+                  <li key={test.id} className="rounded-2xl border border-border bg-surface p-4">
+                    <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-text">{test.testName}</p>
                           <p className="text-xs text-text-muted">{test.date}</p>
@@ -641,11 +720,26 @@ async function StudentDashboard({
                           {pct !== null ? (
                             <p className="text-xs font-semibold text-accent">{pct}%</p>
                           ) : null}
-                        </div>
                       </div>
-                    </li>
-                  );
-                })}
+                    </div>
+                    <details className="mt-3 rounded-xl border border-border bg-white p-3">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                        Full Mistake Breakdown
+                      </summary>
+                      <div className="mt-2 grid gap-2 text-xs text-text-muted sm:grid-cols-2">
+                        <p>Conceptual: {test.mistakeConceptual}</p>
+                        <p>Recall: {test.mistakeRecall}</p>
+                        <p>Reading: {test.mistakeReading}</p>
+                        <p>Elimination: {test.mistakeElimination}</p>
+                        <p>Decision-Making: {test.mistakeDecisionMaking}</p>
+                        <p>Silly: {test.mistakeSilly}</p>
+                        <p>Psychological: {test.mistakePsychological}</p>
+                        <p>Pattern: {test.mistakePatternMisjudgment}</p>
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
               </ul>
             ) : (
               <p className="text-sm text-text-muted">No tests recorded yet.</p>
@@ -759,6 +853,71 @@ async function StudentDashboard({
           </Panel>
         </div>
 
+        <Panel title="Upcoming Meetings">
+          <SectionLead
+            title="7. Upcoming Meetings"
+            subtitle="Meetings created by you or your mentor appear here. Use the dropdown to manage private notes."
+            tag="Shared"
+            tone="shared"
+          />
+          <div className="space-y-3">
+            {meetings.length === 0 ? (
+              <p className="text-sm text-text-muted">No meetings scheduled yet.</p>
+            ) : (
+              meetings.map((meeting) => (
+                <div key={meeting.id} className="rounded-2xl border border-border bg-surface p-4">
+                  <p className="text-sm font-semibold text-text">
+                    {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
+                  </p>
+                  {meeting.meetingLink ? (
+                    <a
+                      href={meeting.meetingLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
+                    >
+                      Open Meeting Link
+                    </a>
+                  ) : null}
+                  <details className="mt-3 rounded-xl border border-border bg-white p-3">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                      Private Notes
+                    </summary>
+                    <div className="mt-3">
+                      <form
+                        action="/api/meetings/notes"
+                        method="post"
+                        className="rounded-xl border border-border bg-surface p-3"
+                      >
+                        <input type="hidden" name="meetingId" value={meeting.id} />
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                          Your Private Notes
+                        </p>
+                        <textarea
+                          name="note"
+                          defaultValue={meeting.studentNotes ?? ""}
+                          rows={3}
+                          className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                          placeholder="Update your notes..."
+                        />
+                        <button
+                          type="submit"
+                          className="mt-2 inline-flex rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-text"
+                        >
+                          Save Notes
+                        </button>
+                      </form>
+                    </div>
+                  </details>
+                </div>
+              ))
+            )}
+          </div>
+        </Panel>
+
         <Panel title="Recent Daily Logs">
           <SectionLead
             title="Recent Accountability History"
@@ -770,7 +929,7 @@ async function StudentDashboard({
             <p className="text-sm text-text-muted">No daily logs yet.</p>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[700px] text-sm">
+              <table className="w-full min-w-[1100px] text-sm">
                 <thead className="bg-surface-soft">
                   <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
                     <th className="px-4 py-3">Date</th>
@@ -778,16 +937,26 @@ async function StudentDashboard({
                     <th className="px-4 py-3">Sleep</th>
                     <th className="px-4 py-3">Meditation</th>
                     <th className="px-4 py-3">Task</th>
+                    <th className="px-4 py-3">Sleep Time</th>
+                    <th className="px-4 py-3">Wake Time</th>
+                    <th className="px-4 py-3">Nap</th>
+                    <th className="px-4 py-3">1-to-1</th>
+                    <th className="px-4 py-3">Relaxation</th>
                   </tr>
                 </thead>
                 <tbody>
                   {dailyHistory.map((row) => (
-                    <tr key={row.date} className="border-t border-border bg-white">
+                    <tr key={row.id} className="border-t border-border bg-white">
                       <td className="px-4 py-3">{row.date}</td>
                       <td className="px-4 py-3">{row.studyHours}h</td>
                       <td className="px-4 py-3">{row.sleepHours}h</td>
                       <td className="px-4 py-3">{row.meditationMinutes}m</td>
                       <td className="px-4 py-3">{row.taskCompleted ?? "-"}</td>
+                      <td className="px-4 py-3">{row.sleepTime ?? "-"}</td>
+                      <td className="px-4 py-3">{row.wakeTime ?? "-"}</td>
+                      <td className="px-4 py-3">{row.afternoonNapMinutes}m</td>
+                      <td className="px-4 py-3">{row.hadMentorDiscussion ? "Yes" : "No"}</td>
+                      <td className="px-4 py-3">{row.relaxationActivity ?? "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -870,7 +1039,7 @@ async function MentorDashboard({
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
   const yesterday = yesterdayDate.toISOString().slice(0, 10);
 
-  const [students, recentLogs, recentSchedules, resourceMappings, studentLogs, studentTests, studentPlans] = await Promise.all([
+  const [students, recentLogs, recentSchedules, resourceMappings, studentLogs, studentTests, studentPlans, mentorMeetings] = await Promise.all([
     prisma.$queryRaw<{ id: string; name: string | null; mobile: string | null; telegramId: string | null }[]>`
       SELECT
         id,
@@ -923,6 +1092,12 @@ async function MentorDashboard({
         l.date::text AS "date",
         l.study_hours::float AS "studyHours",
         l.sleep_hours::float AS "sleepHours",
+        l.meditation_minutes AS "meditationMinutes",
+        l.sleep_time AS "sleepTime",
+        l.wake_time AS "wakeTime",
+        l.afternoon_nap_minutes AS "afternoonNapMinutes",
+        l.had_mentor_discussion AS "hadMentorDiscussion",
+        l.relaxation_activity AS "relaxationActivity",
         l.task_completed::text AS "taskCompleted"
       FROM daily_logs l
       JOIN profiles p ON p.id = l.user_id
@@ -937,7 +1112,15 @@ async function MentorDashboard({
         t.test_name AS "testName",
         t.date::text AS "date",
         t.score::float AS "score",
-        t.total_questions AS "totalQuestions"
+        t.total_questions AS "totalQuestions",
+        t.mistake_conceptual AS "mistakeConceptual",
+        t.mistake_recall AS "mistakeRecall",
+        t.mistake_reading AS "mistakeReading",
+        t.mistake_elimination AS "mistakeElimination",
+        t.mistake_decision_making AS "mistakeDecisionMaking",
+        t.mistake_silly AS "mistakeSilly",
+        t.mistake_psychological AS "mistakePsychological",
+        t.mistake_pattern_misjudgment AS "mistakePatternMisjudgment"
       FROM test_results t
       JOIN profiles p ON p.id = t.user_id
       WHERE p.mentor_id = ${mentorId}::uuid
@@ -956,6 +1139,22 @@ async function MentorDashboard({
       JOIN profiles p ON p.id = y.user_id
       WHERE p.mentor_id = ${mentorId}::uuid
       ORDER BY y.updated_at DESC
+      LIMIT 20
+    `,
+    prisma.$queryRaw<MentorMeetingRecord[]>`
+      SELECT
+        m.id,
+        m.student_id AS "studentId",
+        p.name AS "studentName",
+        m.scheduled_at::text AS "scheduledAt",
+        m.mode,
+        m.meeting_link AS "meetingLink",
+        m.agenda,
+        m.mentor_notes AS "mentorNotes"
+      FROM mentor_meetings m
+      JOIN profiles p ON p.id = m.student_id
+      WHERE m.mentor_id = ${mentorId}::uuid
+      ORDER BY m.scheduled_at DESC
       LIMIT 20
     `,
   ]);
@@ -1147,17 +1346,7 @@ async function MentorDashboard({
             tag="Student Fills"
             tone="student"
           />
-          {studentLogs.length === 0 ? (
-            <p className="text-sm text-text-muted">No daily submissions yet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {studentLogs.map((row) => (
-                <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
-                  <span className="font-semibold text-text">{row.date}</span> · {row.studentName ?? "-"} · Study {row.studyHours}h · Sleep {row.sleepHours}h · Task {row.taskCompleted ?? "-"}
-                </li>
-              ))}
-            </ul>
-          )}
+          <DailySubmissionsList items={studentLogs} />
         </Panel>
 
         <Panel title="Student Test Submissions">
@@ -1167,17 +1356,7 @@ async function MentorDashboard({
             tag="Student Fills"
             tone="student"
           />
-          {studentTests.length === 0 ? (
-            <p className="text-sm text-text-muted">No test submissions yet.</p>
-          ) : (
-            <ul className="space-y-2">
-              {studentTests.map((row) => (
-                <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
-                  <span className="font-semibold text-text">{row.date}</span> · {row.studentName ?? "-"} · {row.testName} · {row.score ?? "-"}{row.totalQuestions ? `/${row.totalQuestions}` : ""}
-                </li>
-              ))}
-            </ul>
-          )}
+          <TestSubmissionsList items={studentTests} />
         </Panel>
       </div>
 
@@ -1214,6 +1393,71 @@ async function MentorDashboard({
             </table>
           </div>
         )}
+      </Panel>
+
+      <Panel title="Upcoming Meetings">
+        <SectionLead
+          title="7. Upcoming Meetings"
+          subtitle="Meetings created by you or students appear here. Use the dropdown to capture private notes."
+          tag="Shared"
+          tone="shared"
+        />
+        <div className="space-y-3">
+          {mentorMeetings.length === 0 ? (
+            <p className="text-sm text-text-muted">No meetings scheduled yet.</p>
+          ) : (
+            mentorMeetings.map((meeting) => (
+              <div key={meeting.id} className="rounded-2xl border border-border bg-surface p-4">
+                <p className="text-sm font-semibold text-text">
+                  {meeting.studentName ?? "-"} · {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
+                </p>
+                {meeting.meetingLink ? (
+                  <a
+                    href={meeting.meetingLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
+                  >
+                    Open Meeting Link
+                  </a>
+                ) : null}
+                  <details className="mt-3 rounded-xl border border-border bg-white p-3">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                      Private Notes
+                    </summary>
+                    <div className="mt-3">
+                      <form
+                        action="/api/meetings/notes"
+                        method="post"
+                        className="rounded-xl border border-border bg-surface p-3"
+                      >
+                        <input type="hidden" name="meetingId" value={meeting.id} />
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                        Your Private Notes
+                      </p>
+                      <textarea
+                        name="note"
+                        defaultValue={meeting.mentorNotes ?? ""}
+                        rows={3}
+                        className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                        placeholder="Update your notes..."
+                      />
+                      <button
+                        type="submit"
+                        className="mt-2 inline-flex rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-text"
+                      >
+                        Save Notes
+                      </button>
+                    </form>
+                  </div>
+                </details>
+              </div>
+            ))
+          )}
+        </div>
       </Panel>
     </div>
   );

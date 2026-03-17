@@ -31,6 +31,10 @@ export default function DashboardTopBar({
   const [plansOpen, setPlansOpen] = useState(initialOpen);
   const [profileOpen, setProfileOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [meetingOpen, setMeetingOpen] = useState(false);
+  const [meetingPeers, setMeetingPeers] = useState<Array<{ id: string; name: string | null }>>([]);
+  const [selectedMeetingStudentId, setSelectedMeetingStudentId] = useState("");
+  const [loadingMeetingPeers, setLoadingMeetingPeers] = useState(false);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const handledSuccessRef = useRef(false);
@@ -53,6 +57,21 @@ export default function DashboardTopBar({
     setChatOpen(false);
     void refreshUnread();
   }, [refreshUnread]);
+  const openMeetingModal = useCallback(async () => {
+    setMeetingOpen(true);
+    if (!showChat || !currentUserId) return;
+    setLoadingMeetingPeers(true);
+    const response = await fetch("/api/chat/peers", { cache: "no-store" });
+    const payload = (await response.json().catch(() => null)) as
+      | { peers?: Array<{ id: string; name: string | null }> }
+      | null;
+    if (response.ok) {
+      const peers = payload?.peers ?? [];
+      setMeetingPeers(peers);
+      setSelectedMeetingStudentId((prev) => prev || peers[0]?.id || "");
+    }
+    setLoadingMeetingPeers(false);
+  }, [showChat, currentUserId]);
 
   useEffect(() => {
     if (!showChat || !currentUserId) return;
@@ -114,6 +133,17 @@ export default function DashboardTopBar({
                 Buy Plans
               </button>
             )}
+            {showChat && currentUserId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void openMeetingModal();
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text transition hover:border-primary"
+              >
+                Schedule Meeting
+              </button>
+            ) : null}
             {showChat && currentUserId ? (
               <button
                 type="button"
@@ -285,6 +315,92 @@ export default function DashboardTopBar({
           roleLabel={roleLabel}
           currentUserId={currentUserId}
         />
+      ) : null}
+
+      {showChat && currentUserId && meetingOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-lg rounded-3xl border border-border bg-white p-6 shadow-2xl sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Meetings</p>
+                <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-text">Schedule a Meeting</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMeetingOpen(false)}
+                className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-text-muted transition hover:text-text"
+              >
+                Close
+              </button>
+            </div>
+
+            <form action="/api/meetings" method="post" className="mt-6 grid gap-3">
+              {isMentor ? (
+                <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                  Student
+                  <select
+                    name="studentId"
+                    required
+                    value={selectedMeetingStudentId}
+                    onChange={(event) => setSelectedMeetingStudentId(event.target.value)}
+                    className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                  >
+                    <option value="">
+                      {loadingMeetingPeers ? "Loading students..." : "Select student"}
+                    </option>
+                    {meetingPeers.map((peer) => (
+                      <option key={peer.id} value={peer.id}>
+                        {peer.name ?? peer.id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                Date & Time
+                <input
+                  name="scheduledAt"
+                  type="datetime-local"
+                  required
+                  className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                Mode
+                <input
+                  name="mode"
+                  placeholder="call / online / in-person"
+                  className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                Meeting Link
+                <input
+                  name="meetingLink"
+                  type="url"
+                  placeholder="https://meet.google.com/..."
+                  className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                Agenda
+                <input
+                  name="agenda"
+                  placeholder="Discussion topics"
+                  className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-normal normal-case tracking-normal text-text"
+                />
+              </label>
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="submit"
+                  className="inline-flex rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-primary-dark"
+                >
+                  Create Meeting
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
     </>
   );
