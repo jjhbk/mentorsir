@@ -173,6 +173,7 @@ interface StudentAuditViewRecord {
 }
 
 interface MentorResourceViewRecord {
+  ownerId?: string;
   rowKey: string;
   resource: string | null;
   prelimsPyqPractice: string | null;
@@ -713,18 +714,16 @@ async function StudentDashboard({
       WHERE user_id = ${userId}::uuid
       LIMIT 1
     `,
-    assignedMentor
-      ? prisma.$queryRaw<MentorResourceViewRecord[]>`
-          SELECT
-            row_key AS "rowKey",
-            resource,
-            prelims_pyq_practice AS "prelimsPyqPractice",
-            prelims_test_series AS "prelimsTestSeries",
-            mains_pyq AS "mainsPyq"
-          FROM resource_mapping_values
-          WHERE owner_id = ${assignedMentor.id}::uuid
-        `
-      : Promise.resolve([] as MentorResourceViewRecord[]),
+    prisma.$queryRaw<MentorResourceViewRecord[]>`
+      SELECT
+        row_key AS "rowKey",
+        resource,
+        prelims_pyq_practice AS "prelimsPyqPractice",
+        prelims_test_series AS "prelimsTestSeries",
+        mains_pyq AS "mainsPyq"
+      FROM resource_mapping_values
+      WHERE owner_id = ${userId}::uuid
+    `,
   ]);
   const studentAudit = studentAuditRows[0];
   const mentorResourceByRowKey = new Map(
@@ -1262,56 +1261,62 @@ async function StudentDashboard({
               <p className="text-sm text-text-muted">No meetings scheduled yet.</p>
             ) : (
               meetings.map((meeting) => (
-                <div key={meeting.id} className="rounded-2xl border border-border bg-surface p-4">
-                  <p className="text-sm font-semibold text-text">
-                    {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {meeting.status === "approved" ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
-                        Approved
-                      </span>
-                    ) : null}
-                    {meeting.status === "pending" ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
-                        Awaiting Mentor Approval
-                      </span>
-                    ) : null}
-                    {meeting.status === "rejected" ? (
-                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-700">
-                        Rejected
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-xs text-text-muted">
-                    {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
-                  </p>
-                  {meeting.status === "rejected" && meeting.rejectionReason ? (
-                    <p className="mt-1 text-xs text-danger">Reason: {meeting.rejectionReason}</p>
-                  ) : null}
-                  {meeting.meetingLink ? (
-                    <a
-                      href={meeting.meetingLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
-                    >
-                      Open Meeting Link
-                    </a>
-                  ) : null}
-                  <details className="mt-3 rounded-xl border border-border bg-white p-3">
-                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
-                      Private Notes
-                    </summary>
-                    <div className="mt-3">
-                      <MeetingNotesEditor
-                        meetingId={meeting.id}
-                        defaultNote={meeting.studentNotes ?? ""}
-                        defaultAudioUrls={meeting.studentNotesAudioUrls}
-                      />
+                <details key={meeting.id} className="rounded-2xl border border-border bg-surface p-4">
+                  <summary className="cursor-pointer">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-text">
+                        {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {meeting.status === "approved" ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                            Approved
+                          </span>
+                        ) : null}
+                        {meeting.status === "pending" ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                            Awaiting Mentor Approval
+                          </span>
+                        ) : null}
+                        {meeting.status === "rejected" ? (
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-700">
+                            Rejected
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </details>
-                </div>
+                  </summary>
+                  <div className="mt-3">
+                    <p className="text-xs text-text-muted">
+                      {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
+                    </p>
+                    {meeting.status === "rejected" && meeting.rejectionReason ? (
+                      <p className="mt-1 text-xs text-danger">Reason: {meeting.rejectionReason}</p>
+                    ) : null}
+                    {meeting.meetingLink ? (
+                      <a
+                        href={meeting.meetingLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
+                      >
+                        Open Meeting Link
+                      </a>
+                    ) : null}
+                    <details className="mt-3 rounded-xl border border-border bg-white p-3">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                        Private Notes
+                      </summary>
+                      <div className="mt-3">
+                        <MeetingNotesEditor
+                          meetingId={meeting.id}
+                          defaultNote={meeting.studentNotes ?? ""}
+                          defaultAudioUrls={meeting.studentNotesAudioUrls}
+                        />
+                      </div>
+                    </details>
+                  </div>
+                </details>
               ))
             )}
           </div>
@@ -1441,7 +1446,7 @@ async function StudentDashboard({
                                 <th className="px-3 py-2">Resource</th>
                                 <th className="px-3 py-2">Prelims PYQ</th>
                                 <th className="px-3 py-2">Prelims Test Series</th>
-                                <th className="px-3 py-2">Mains PYQ</th>
+                                <th className="px-3 py-2">Mains Test Series</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1524,13 +1529,19 @@ async function MentorDashboard({
     `,
     prisma.$queryRaw<MentorResourceViewRecord[]>`
       SELECT
+        owner_id AS "ownerId",
         row_key AS "rowKey",
         resource,
         prelims_pyq_practice AS "prelimsPyqPractice",
         prelims_test_series AS "prelimsTestSeries",
         mains_pyq AS "mainsPyq"
       FROM resource_mapping_values
-      WHERE owner_id = ${mentorId}::uuid
+      WHERE owner_id IN (
+        SELECT id
+        FROM profiles
+        WHERE role = 'student'::"Role"
+          AND mentor_id = ${mentorId}::uuid
+      )
     `,
     prisma.$queryRaw<MentorStudentLogRecord[]>`
       SELECT
@@ -1623,8 +1634,8 @@ async function MentorDashboard({
   const logMap = new Map<string, { userId: string; date: string; studyHours: number }>();
   recentLogs.forEach((log) => logMap.set(log.userId, log));
   const loggedToday = students.filter((student) => logMap.get(student.id)?.date === today).length;
-  const resourceMapByRowKey = new Map(
-    resourceMappings.map((row) => [row.rowKey, row] as const)
+  const resourceMapByStudentRowKey = new Map(
+    resourceMappings.map((row) => [`${row.ownerId ?? ""}:${row.rowKey}`, row] as const)
   );
 
   return (
@@ -1762,147 +1773,166 @@ async function MentorDashboard({
         <Panel title="Resource Mapping">
           <SectionLead
             title="3. Resource Mapping Grid"
-            subtitle="First three columns are fixed for all users. Save editable values per row."
+            subtitle="Student-specific mapping. Choose a student, then edit GS/Subject rows."
             tag="You Fill"
             tone="mentor"
           />
           <div className="max-h-[70vh] space-y-2 overflow-auto rounded-2xl border border-border bg-surface-soft p-2">
-            {RESOURCE_TEMPLATE_GROUPS.map((group) => (
-              <details
-                key={`mentor-resource-group-${group.paper}`}
-                open={group.paper === "GS 1"}
-                className="rounded-xl border border-border bg-white"
-              >
-                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text">
-                  {group.paper} <span className="text-text-muted">({group.rows.length} rows)</span>
-                </summary>
-                <div className="space-y-2 border-t border-border p-2">
-                  {groupTemplateRowsBySubject(group.rows).map((subjectGroup, subjectIndex) => (
-                    <details
-                      key={`mentor-resource-group-${group.paper}-${subjectGroup.subject}`}
-                      open={subjectIndex === 0}
-                      className="rounded-lg border border-border"
-                    >
-                      <summary className="cursor-pointer bg-surface px-3 py-2 text-xs font-semibold text-text">
-                        {subjectGroup.subject}{" "}
-                        <span className="text-text-muted">({subjectGroup.rows.length})</span>
-                      </summary>
-                      <div className="overflow-x-auto border-t border-border">
-                        <table className="w-full min-w-[980px] text-xs">
-                          <thead className="bg-surface-soft">
-                            <tr className="text-left uppercase tracking-[0.1em] text-text-muted">
-                              <th className="px-3 py-2">Part</th>
-                              <th className="px-3 py-2">Resource (Editable)</th>
-                              <th className="px-3 py-2">Prelims PYQ</th>
-                              <th className="px-3 py-2">Prelims Test Series</th>
-                              <th className="px-3 py-2">Mains PYQ</th>
-                              <th className="px-3 py-2">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {subjectGroup.rows.map((templateRow) => {
-                              const row = resourceMapByRowKey.get(templateRow.rowKey);
-                              const isCustomOptionalResource =
-                                templateRow.rowKey === "optional" &&
-                                !!row?.resource &&
-                                !(OPTIONAL_SUBJECT_OPTIONS as readonly string[]).includes(row.resource);
-                              return (
-                                <tr key={templateRow.rowKey} className="border-t border-border bg-white align-top">
-                                  <td className="px-3 py-2 text-text">{templateRow.part}</td>
-                                  <td colSpan={4} className="px-3 py-2">
-                                    <form action="/api/resource-mapping" method="post" className="grid gap-2 md:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-                                      <input type="hidden" name="rowKey" value={templateRow.rowKey} />
-                                      {templateRow.rowKey === "optional" ? (
-                                        <div className="grid gap-1">
-                                          <select
-                                            name="resource"
-                                            defaultValue={isCustomOptionalResource ? "Other" : (row?.resource ?? "")}
-                                            className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                                          >
-                                            <option value="">Select optional subject</option>
-                                            {OPTIONAL_SUBJECT_OPTIONS.map((option) => (
-                                              <option key={`optional-subject-${option}`} value={option}>
-                                                {option}
-                                              </option>
-                                            ))}
-                                            <option value="Other">Other</option>
-                                          </select>
-                                          <input
-                                            name="optionalOtherResource"
-                                            defaultValue={isCustomOptionalResource ? (row?.resource ?? "") : ""}
-                                            placeholder="Other optional subject (if selected)"
-                                            className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                                          />
-                                        </div>
-                                      ) : (
-                                        <input
-                                          name="resource"
-                                          defaultValue={row?.resource ?? ""}
-                                          placeholder="Resource notes"
-                                          list={`resource-options-${templateRow.rowKey}`}
-                                          className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                                        />
-                                      )}
-                                      <datalist id={`resource-options-${templateRow.rowKey}`}>
-                                        {(RESOURCE_OPTIONS_BY_ROW[templateRow.rowKey] ?? []).map((option) => (
-                                          <option key={`${templateRow.rowKey}-resource-${option}`} value={option} />
-                                        ))}
-                                      </datalist>
-                                      <select
-                                        name="prelimsPyqPractice"
-                                        defaultValue={row?.prelimsPyqPractice ?? ""}
-                                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                                      >
-                                        <option value="">Select</option>
-                                        {PRELIMS_PYQ_OPTIONS.map((option) => (
-                                          <option key={`${templateRow.rowKey}-pyq-${option}`} value={option}>
-                                            {option}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <select
-                                        name="prelimsTestSeries"
-                                        defaultValue={row?.prelimsTestSeries ?? ""}
-                                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                                      >
-                                        <option value="">Select</option>
-                                        {PRELIMS_TEST_SERIES_OPTIONS.map((option) => (
-                                          <option key={`${templateRow.rowKey}-pts-${option}`} value={option}>
-                                            {option}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <select
-                                        name="mainsPyq"
-                                        defaultValue={row?.mainsPyq ?? ""}
-                                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                                      >
-                                        <option value="">Select</option>
-                                        {MAINS_TEST_SERIES.map((option) => (
-                                          <option key={`${templateRow.rowKey}-mains-${option}`} value={option}>
-                                            {option}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      <button
-                                        type="submit"
-                                        className="inline-flex rounded-full bg-primary px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
-                                      >
-                                        Save
-                                      </button>
-                                    </form>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </details>
-            ))}
+            {students.length === 0 ? (
+              <p className="px-2 py-3 text-sm text-text-muted">No assigned students yet.</p>
+            ) : (
+              students.map((student, studentIndex) => (
+                <details
+                  key={`mentor-student-resource-group-${student.id}`}
+                  open={studentIndex === 0}
+                  className="rounded-xl border border-border bg-white"
+                >
+                  <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text">
+                    {student.name ?? "Unnamed Student"}{" "}
+                    <span className="text-text-muted">({student.mobile ?? "No mobile"})</span>
+                  </summary>
+                  <div className="space-y-2 border-t border-border p-2">
+                    {RESOURCE_TEMPLATE_GROUPS.map((group) => (
+                      <details
+                        key={`mentor-resource-group-${student.id}-${group.paper}`}
+                        open={group.paper === "GS 1"}
+                        className="rounded-lg border border-border"
+                      >
+                        <summary className="cursor-pointer bg-surface px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text">
+                          {group.paper} <span className="text-text-muted">({group.rows.length} rows)</span>
+                        </summary>
+                        <div className="space-y-2 border-t border-border p-2">
+                          {groupTemplateRowsBySubject(group.rows).map((subjectGroup, subjectIndex) => (
+                            <details
+                              key={`mentor-resource-group-${student.id}-${group.paper}-${subjectGroup.subject}`}
+                              open={subjectIndex === 0}
+                              className="rounded-lg border border-border"
+                            >
+                              <summary className="cursor-pointer bg-white px-3 py-2 text-xs font-semibold text-text">
+                                {subjectGroup.subject}{" "}
+                                <span className="text-text-muted">({subjectGroup.rows.length})</span>
+                              </summary>
+                              <div className="overflow-x-auto border-t border-border">
+                                <table className="w-full min-w-[980px] text-xs">
+                                  <thead className="bg-surface-soft">
+                                    <tr className="text-left uppercase tracking-[0.1em] text-text-muted">
+                                      <th className="px-3 py-2">Part</th>
+                                      <th className="px-3 py-2">Resource (Editable)</th>
+                                      <th className="px-3 py-2">Prelims PYQ</th>
+                                      <th className="px-3 py-2">Prelims Test Series</th>
+                                      <th className="px-3 py-2">Mains Test Series</th>
+                                      <th className="px-3 py-2">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {subjectGroup.rows.map((templateRow) => {
+                                      const row = resourceMapByStudentRowKey.get(`${student.id}:${templateRow.rowKey}`);
+                                      const isCustomOptionalResource =
+                                        templateRow.rowKey === "optional" &&
+                                        !!row?.resource &&
+                                        !(OPTIONAL_SUBJECT_OPTIONS as readonly string[]).includes(row.resource);
+                                      return (
+                                        <tr key={`${student.id}-${templateRow.rowKey}`} className="border-t border-border bg-white align-top">
+                                          <td className="px-3 py-2 text-text">{templateRow.part}</td>
+                                          <td colSpan={4} className="px-3 py-2">
+                                            <form action="/api/resource-mapping" method="post" className="grid gap-2 md:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+                                              <input type="hidden" name="rowKey" value={templateRow.rowKey} />
+                                              <input type="hidden" name="targetUserId" value={student.id} />
+                                              {templateRow.rowKey === "optional" ? (
+                                                <div className="grid gap-1">
+                                                  <select
+                                                    name="resource"
+                                                    defaultValue={isCustomOptionalResource ? "Other" : (row?.resource ?? "")}
+                                                    className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                                  >
+                                                    <option value="">Select optional subject</option>
+                                                    {OPTIONAL_SUBJECT_OPTIONS.map((option) => (
+                                                      <option key={`optional-subject-${option}`} value={option}>
+                                                        {option}
+                                                      </option>
+                                                    ))}
+                                                    <option value="Other">Other</option>
+                                                  </select>
+                                                  <input
+                                                    name="optionalOtherResource"
+                                                    defaultValue={isCustomOptionalResource ? (row?.resource ?? "") : ""}
+                                                    placeholder="Other optional subject (if selected)"
+                                                    className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                                  />
+                                                </div>
+                                              ) : (
+                                                <input
+                                                  name="resource"
+                                                  defaultValue={row?.resource ?? ""}
+                                                  placeholder="Resource notes"
+                                                  list={`resource-options-${templateRow.rowKey}`}
+                                                  className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                                />
+                                              )}
+                                              <datalist id={`resource-options-${templateRow.rowKey}`}>
+                                                {(RESOURCE_OPTIONS_BY_ROW[templateRow.rowKey] ?? []).map((option) => (
+                                                  <option key={`${templateRow.rowKey}-resource-${option}`} value={option} />
+                                                ))}
+                                              </datalist>
+                                              <select
+                                                name="prelimsPyqPractice"
+                                                defaultValue={row?.prelimsPyqPractice ?? ""}
+                                                className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                              >
+                                                <option value="">Select</option>
+                                                {PRELIMS_PYQ_OPTIONS.map((option) => (
+                                                  <option key={`${templateRow.rowKey}-pyq-${option}`} value={option}>
+                                                    {option}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                              <select
+                                                name="prelimsTestSeries"
+                                                defaultValue={row?.prelimsTestSeries ?? ""}
+                                                className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                              >
+                                                <option value="">Select</option>
+                                                {PRELIMS_TEST_SERIES_OPTIONS.map((option) => (
+                                                  <option key={`${templateRow.rowKey}-pts-${option}`} value={option}>
+                                                    {option}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                              <select
+                                                name="mainsPyq"
+                                                defaultValue={row?.mainsPyq ?? ""}
+                                                className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                                              >
+                                                <option value="">Select</option>
+                                                {MAINS_TEST_SERIES.map((option) => (
+                                                  <option key={`${templateRow.rowKey}-mains-${option}`} value={option}>
+                                                    {option}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                              <button
+                                                type="submit"
+                                                className="inline-flex rounded-full bg-primary px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
+                                              >
+                                                Save
+                                              </button>
+                                            </form>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </details>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
+              ))
+            )}
           </div>
         </Panel>
       </div>
@@ -2081,114 +2111,120 @@ async function MentorDashboard({
             <p className="text-sm text-text-muted">No meetings scheduled yet.</p>
           ) : (
             mentorMeetings.map((meeting) => (
-              <div key={meeting.id} className="rounded-2xl border border-border bg-surface p-4">
-                <p className="text-sm font-semibold text-text">
-                  {meeting.studentName ?? "-"} · {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
-                </p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {meeting.status === "approved" ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
-                      Approved
-                    </span>
+              <details key={meeting.id} className="rounded-2xl border border-border bg-surface p-4">
+                <summary className="cursor-pointer">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-text">
+                      {meeting.studentName ?? "-"} · {new Date(meeting.scheduledAt).toLocaleString("en-IN")}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {meeting.status === "approved" ? (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                          Approved
+                        </span>
+                      ) : null}
+                      {meeting.status === "pending" ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                          Student Request Pending
+                        </span>
+                      ) : null}
+                      {meeting.status === "rejected" ? (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-700">
+                          Rejected
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </summary>
+                <div className="mt-3">
+                  <p className="text-xs text-text-muted">
+                    {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
+                  </p>
+                  {meeting.status === "rejected" && meeting.rejectionReason ? (
+                    <p className="mt-1 text-xs text-danger">Reason: {meeting.rejectionReason}</p>
                   ) : null}
                   {meeting.status === "pending" ? (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
-                      Student Request Pending
-                    </span>
+                    <div className="mt-3 grid gap-2 rounded-xl border border-border bg-white p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                        Confirm Availability
+                      </p>
+                      <form action="/api/meetings" method="post" className="grid gap-2">
+                        <input type="hidden" name="action" value="approve" />
+                        <input type="hidden" name="meetingId" value={meeting.id} />
+                        <input
+                          type="datetime-local"
+                          name="scheduledAt"
+                          defaultValue={new Date(meeting.scheduledAt).toISOString().slice(0, 16)}
+                          required
+                          className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                        />
+                        <input
+                          name="mode"
+                          defaultValue={meeting.mode ?? ""}
+                          placeholder="call / online / in-person"
+                          className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                        />
+                        <input
+                          name="meetingLink"
+                          type="url"
+                          defaultValue={meeting.meetingLink ?? ""}
+                          placeholder="https://meet.google.com/..."
+                          className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                        />
+                        <input
+                          name="agenda"
+                          defaultValue={meeting.agenda ?? ""}
+                          placeholder="Discussion topics"
+                          className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                        />
+                        <button
+                          type="submit"
+                          className="inline-flex w-fit rounded-full bg-primary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
+                        >
+                          Approve Meeting
+                        </button>
+                      </form>
+                      <form action="/api/meetings" method="post" className="grid gap-2">
+                        <input type="hidden" name="action" value="reject" />
+                        <input type="hidden" name="meetingId" value={meeting.id} />
+                        <input
+                          name="rejectionReason"
+                          placeholder="Reason for rejection (optional)"
+                          className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
+                        />
+                        <button
+                          type="submit"
+                          className="inline-flex w-fit rounded-full border border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-text"
+                        >
+                          Reject Meeting
+                        </button>
+                      </form>
+                    </div>
                   ) : null}
-                  {meeting.status === "rejected" ? (
-                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-rose-700">
-                      Rejected
-                    </span>
+                  {meeting.meetingLink ? (
+                    <a
+                      href={meeting.meetingLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
+                    >
+                      Open Meeting Link
+                    </a>
                   ) : null}
+                  <details className="mt-3 rounded-xl border border-border bg-white p-3">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                      Private Notes
+                    </summary>
+                    <div className="mt-3">
+                      <MeetingNotesEditor
+                        meetingId={meeting.id}
+                        defaultNote={meeting.mentorNotes ?? ""}
+                        defaultAudioUrls={meeting.mentorNotesAudioUrls}
+                      />
+                    </div>
+                  </details>
                 </div>
-                <p className="mt-1 text-xs text-text-muted">
-                  {meeting.mode ?? "Mode not specified"} · {meeting.agenda ?? "No agenda"}
-                </p>
-                {meeting.status === "rejected" && meeting.rejectionReason ? (
-                  <p className="mt-1 text-xs text-danger">Reason: {meeting.rejectionReason}</p>
-                ) : null}
-                {meeting.status === "pending" ? (
-                  <div className="mt-3 grid gap-2 rounded-xl border border-border bg-white p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
-                      Confirm Availability
-                    </p>
-                    <form action="/api/meetings" method="post" className="grid gap-2">
-                      <input type="hidden" name="action" value="approve" />
-                      <input type="hidden" name="meetingId" value={meeting.id} />
-                      <input
-                        type="datetime-local"
-                        name="scheduledAt"
-                        defaultValue={new Date(meeting.scheduledAt).toISOString().slice(0, 16)}
-                        required
-                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                      />
-                      <input
-                        name="mode"
-                        defaultValue={meeting.mode ?? ""}
-                        placeholder="call / online / in-person"
-                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                      />
-                      <input
-                        name="meetingLink"
-                        type="url"
-                        defaultValue={meeting.meetingLink ?? ""}
-                        placeholder="https://meet.google.com/..."
-                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                      />
-                      <input
-                        name="agenda"
-                        defaultValue={meeting.agenda ?? ""}
-                        placeholder="Discussion topics"
-                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                      />
-                      <button
-                        type="submit"
-                        className="inline-flex w-fit rounded-full bg-primary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white"
-                      >
-                        Approve Meeting
-                      </button>
-                    </form>
-                    <form action="/api/meetings" method="post" className="grid gap-2">
-                      <input type="hidden" name="action" value="reject" />
-                      <input type="hidden" name="meetingId" value={meeting.id} />
-                      <input
-                        name="rejectionReason"
-                        placeholder="Reason for rejection (optional)"
-                        className="rounded-xl border border-border bg-white px-3 py-2 text-xs text-text"
-                      />
-                      <button
-                        type="submit"
-                        className="inline-flex w-fit rounded-full border border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-text"
-                      >
-                        Reject Meeting
-                      </button>
-                    </form>
-                  </div>
-                ) : null}
-                {meeting.meetingLink ? (
-                  <a
-                    href={meeting.meetingLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex text-xs font-semibold text-primary hover:underline"
-                  >
-                    Open Meeting Link
-                  </a>
-                ) : null}
-                <details className="mt-3 rounded-xl border border-border bg-white p-3">
-                  <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
-                    Private Notes
-                  </summary>
-                  <div className="mt-3">
-                    <MeetingNotesEditor
-                      meetingId={meeting.id}
-                      defaultNote={meeting.mentorNotes ?? ""}
-                      defaultAudioUrls={meeting.mentorNotesAudioUrls}
-                    />
-                  </div>
                 </details>
-              </div>
             ))
           )}
         </div>

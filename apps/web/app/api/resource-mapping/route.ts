@@ -34,12 +34,34 @@ export async function POST(request: NextRequest) {
 
   const form = await request.formData();
   const rowKey = toText(form.get("rowKey"));
+  const targetUserId = toText(form.get("targetUserId"));
   if (!rowKey) {
     return NextResponse.json({ error: "Row key is required" }, { status: 400 });
   }
   const existsInTemplate = RESOURCE_MAPPING_TEMPLATE.some((entry) => entry.rowKey === rowKey);
   if (!existsInTemplate) {
     return NextResponse.json({ error: "Invalid row key" }, { status: 400 });
+  }
+
+  let ownerId = user.id;
+  if (isAdmin) {
+    ownerId = targetUserId ?? user.id;
+  } else if (role === "mentor") {
+    if (!targetUserId) {
+      return NextResponse.json({ error: "Student is required" }, { status: 400 });
+    }
+    const canManageRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id
+      FROM profiles
+      WHERE id = ${targetUserId}::uuid
+        AND role = 'student'::"Role"
+        AND mentor_id = ${user.id}::uuid
+      LIMIT 1
+    `;
+    if (canManageRows.length === 0) {
+      return NextResponse.json({ error: "You can only update assigned students" }, { status: 403 });
+    }
+    ownerId = targetUserId;
   }
 
   const selectedResource = toText(form.get("resource"));
@@ -82,7 +104,7 @@ export async function POST(request: NextRequest) {
       mains_pyq
     )
     VALUES (
-      ${user.id}::uuid,
+      ${ownerId}::uuid,
       ${rowKey},
       ${resource},
       ${prelimsPyqPractice},
