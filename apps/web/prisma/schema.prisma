@@ -31,6 +31,9 @@ model Profile {
   mentorAccessRequest MentorAccessRequest?
   planSubscriptions   PlanSubscription[]
   seedhapeOrders      SeedhaPeOrder[]
+  yearlyPlanEntries   YearlyPlanEntry[]
+  alternateScheduleEntries AlternateScheduleEntry[]
+  resourceMappings    ResourceMappingEntry[] @relation("ResourceMappingOwner")
 
   @@map("profiles")
 }
@@ -267,4 +270,59 @@ model SeedhaPeOrder {
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@map("seedhape_orders")
+}
+
+// ── Resource Mapping ─────────────────────────────────────────────────────────
+// Mentor-owned subject-to-resource mapping rows.
+model ResourceMappingEntry {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId            String   @map("owner_id") @db.Uuid
+  subject            String
+  part               String?
+  resource           String?
+  prelimsPyqPractice String?  @map("prelims_pyq_practice")
+  mainsPyq           String?  @map("mains_pyq")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner Profile @relation("ResourceMappingOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+  @@map("resource_mapping_entries")
+}
+
+// ── Yearly Plan ──────────────────────────────────────────────────────────────
+// Student yearly plan rows with up to three subject focuses per month.
+model YearlyPlanEntry {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  month     String
+  subject1  String?  @map("subject_1")
+  subject2  String?  @map("subject_2")
+  subject3  String?  @map("subject_3")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@index([userId, createdAt])
+  @@map("yearly_plan_entries")
+}
+
+// ── Alternate Schedule ───────────────────────────────────────────────────────
+// Flexible day-level alternate schedule notes for students.
+model AlternateScheduleEntry {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  date      DateTime @db.Date
+  focus     String?
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("alternate_schedule_entries")
 }

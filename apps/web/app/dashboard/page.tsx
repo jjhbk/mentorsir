@@ -69,6 +69,93 @@ interface StudentMentorAssignmentRecord {
   mentorName: string | null;
 }
 
+interface StudentTodayLogRecord {
+  studyHours: number;
+  taskCompleted: "yes" | "no" | "partial" | null;
+}
+
+interface StudentScheduleRecord {
+  id: string;
+  subject: string | null;
+  syllabus: string | null;
+  date: string;
+}
+
+interface StudentTestRecord {
+  id: string;
+  testName: string;
+  date: string;
+  score: number | null;
+  totalQuestions: number | null;
+}
+
+interface StudentDailyHistoryRecord {
+  date: string;
+  studyHours: number;
+  sleepHours: number;
+  meditationMinutes: number;
+  taskCompleted: "yes" | "no" | "partial" | null;
+}
+
+interface YearlyPlanRecord {
+  id: string;
+  month: string;
+  subject1: string | null;
+  subject2: string | null;
+  subject3: string | null;
+  notes: string | null;
+}
+
+interface AlternateScheduleRecord {
+  id: string;
+  date: string;
+  focus: string | null;
+  note: string | null;
+}
+
+interface StudentAuditViewRecord {
+  strongAcademicSubjects: string[];
+  weakAcademicSubjects: string[];
+  strongPersonalityTraits: string[];
+  weakPersonalityTraits: string[];
+}
+
+interface MentorResourceViewRecord {
+  id: string;
+  subject: string;
+  part: string | null;
+  resource: string | null;
+  prelimsPyqPractice: string | null;
+  mainsPyq: string | null;
+}
+
+interface MentorStudentLogRecord {
+  id: string;
+  studentName: string | null;
+  date: string;
+  studyHours: number;
+  sleepHours: number;
+  taskCompleted: string | null;
+}
+
+interface MentorStudentTestRecord {
+  id: string;
+  studentName: string | null;
+  testName: string;
+  date: string;
+  score: number | null;
+  totalQuestions: number | null;
+}
+
+interface MentorStudentPlanRecord {
+  id: string;
+  studentName: string | null;
+  month: string;
+  subject1: string | null;
+  subject2: string | null;
+  subject3: string | null;
+}
+
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-3xl border border-border bg-white/95 p-6 sm:p-7">
@@ -101,6 +188,50 @@ function MetricCell({
   );
 }
 
+function SectionTag({
+  tone = "neutral",
+  children,
+}: {
+  tone?: "neutral" | "student" | "mentor" | "shared";
+  children: React.ReactNode;
+}) {
+  const toneClass =
+    tone === "student"
+      ? "bg-blue-100 text-blue-700"
+      : tone === "mentor"
+        ? "bg-amber-100 text-amber-700"
+        : tone === "shared"
+          ? "bg-emerald-100 text-emerald-700"
+          : "bg-surface-soft text-text-muted";
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] ${toneClass}`}>
+      {children}
+    </span>
+  );
+}
+
+function SectionLead({
+  title,
+  subtitle,
+  tag,
+  tone = "neutral",
+}: {
+  title: string;
+  subtitle: string;
+  tag?: string;
+  tone?: "neutral" | "student" | "mentor" | "shared";
+}) {
+  return (
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h3 className="text-base font-semibold text-text">{title}</h3>
+        <p className="mt-1 text-xs text-text-muted">{subtitle}</p>
+      </div>
+      {tag ? <SectionTag tone={tone}>{tag}</SectionTag> : null}
+    </div>
+  );
+}
+
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "-";
   if (Array.isArray(value)) return value.length ? value.join(", ") : "-";
@@ -119,22 +250,118 @@ function IntakeField({ label, value }: { label: string; value: unknown }) {
 }
 
 async function StudentDashboard({
+  userId,
   profile,
   assignedMentor,
   boughtPlan,
 }: {
+  userId: string;
   profile: Profile;
   assignedMentor: MentorSummary | null;
   boughtPlan?: string;
 }) {
-  const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const [{ data: log }, { data: upcoming }, { data: tests }] = await Promise.all([
-    supabase.from("daily_logs").select("*").eq("date", today).maybeSingle(),
-    supabase.from("schedule_entries").select("*").gte("date", today).order("date").limit(5),
-    supabase.from("test_results").select("*").order("date", { ascending: false }).limit(5),
+  const [todayLogs, upcoming, tests, dailyHistory, yearlyPlan, alternateSchedule] = await Promise.all([
+    prisma.$queryRaw<StudentTodayLogRecord[]>`
+      SELECT
+        study_hours AS "studyHours",
+        task_completed::text AS "taskCompleted"
+      FROM daily_logs
+      WHERE user_id = ${userId}::uuid
+        AND date = ${today}::date
+      LIMIT 1
+    `,
+    prisma.$queryRaw<StudentScheduleRecord[]>`
+      SELECT
+        id,
+        subject,
+        syllabus,
+        date::text AS "date"
+      FROM schedule_entries
+      WHERE user_id = ${userId}::uuid
+        AND date >= ${today}::date
+      ORDER BY date ASC
+      LIMIT 7
+    `,
+    prisma.$queryRaw<StudentTestRecord[]>`
+      SELECT
+        id,
+        test_name AS "testName",
+        date::text AS "date",
+        score::float AS "score",
+        total_questions AS "totalQuestions"
+      FROM test_results
+      WHERE user_id = ${userId}::uuid
+      ORDER BY date DESC
+      LIMIT 7
+    `,
+    prisma.$queryRaw<StudentDailyHistoryRecord[]>`
+      SELECT
+        date::text AS "date",
+        study_hours::float AS "studyHours",
+        sleep_hours::float AS "sleepHours",
+        meditation_minutes AS "meditationMinutes",
+        task_completed::text AS "taskCompleted"
+      FROM daily_logs
+      WHERE user_id = ${userId}::uuid
+      ORDER BY date DESC
+      LIMIT 7
+    `,
+    prisma.$queryRaw<YearlyPlanRecord[]>`
+      SELECT
+        id,
+        month,
+        subject_1 AS "subject1",
+        subject_2 AS "subject2",
+        subject_3 AS "subject3",
+        notes
+      FROM yearly_plan_entries
+      WHERE user_id = ${userId}::uuid
+      ORDER BY month ASC
+      LIMIT 12
+    `,
+    prisma.$queryRaw<AlternateScheduleRecord[]>`
+      SELECT
+        id,
+        date::text AS "date",
+        focus,
+        note
+      FROM alternate_schedule_entries
+      WHERE user_id = ${userId}::uuid
+      ORDER BY date DESC, created_at DESC
+      LIMIT 10
+    `,
   ]);
+  const log = todayLogs[0];
+  const [studentAuditRows, mentorResources] = await Promise.all([
+    prisma.$queryRaw<StudentAuditViewRecord[]>`
+      SELECT
+        strong_academic_subjects AS "strongAcademicSubjects",
+        weak_academic_subjects AS "weakAcademicSubjects",
+        strong_personality_traits AS "strongPersonalityTraits",
+        weak_personality_traits AS "weakPersonalityTraits"
+      FROM student_audits
+      WHERE user_id = ${userId}::uuid
+      LIMIT 1
+    `,
+    assignedMentor
+      ? prisma.$queryRaw<MentorResourceViewRecord[]>`
+          SELECT
+            id,
+            subject,
+            part,
+            resource,
+            prelims_pyq_practice AS "prelimsPyqPractice",
+            mains_pyq AS "mainsPyq"
+          FROM resource_mapping_entries
+          WHERE owner_id = ${assignedMentor.id}::uuid
+          ORDER BY created_at DESC
+          LIMIT 20
+        `
+      : Promise.resolve([] as MentorResourceViewRecord[]),
+  ]);
+  const studentAudit = studentAuditRows[0];
 
   const firstName = profile.name?.split(" ")[0] ?? "Scholar";
   const hour = new Date().getHours();
@@ -155,6 +382,9 @@ async function StudentDashboard({
             year: "numeric",
           })}
         </p>
+        <p className="mt-3 text-sm text-text-muted">
+          Track your day, submit test analysis, and keep your mentor updated in one place.
+        </p>
         {boughtPlan && (
           <p className="mt-4 inline-flex rounded-full bg-emerald-100 px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-emerald-700">
             Plan activated: {boughtPlan}
@@ -169,6 +399,12 @@ async function StudentDashboard({
       </header>
 
       <Panel title="Assigned Mentor">
+        <SectionLead
+          title="Mentor Connection"
+          subtitle="Contact and guidance details shared by your assigned mentor."
+          tag="Mentor Shared"
+          tone="mentor"
+        />
         {assignedMentor ? (
           <div className="rounded-2xl border border-border bg-surface p-4">
             <p className="text-sm font-semibold text-text">{assignedMentor.name ?? "Mentor"}</p>
@@ -191,70 +427,401 @@ async function StudentDashboard({
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCell
           label="Study today"
-          value={log ? `${log.study_hours}` : "-"}
+          value={log ? `${log.studyHours}` : "-"}
           unit={log ? "h" : ""}
           status={log ? "Logged" : "Not logged"}
         />
         <MetricCell
           label="Tasks"
-          value={log?.task_completed ?? "-"}
+          value={log?.taskCompleted ?? "-"}
           status={log ? "Today's task status" : "Pending"}
         />
         <MetricCell
           label="Last test"
-          value={tests?.[0] ? `${tests[0].score}` : "-"}
-          unit={tests?.[0] ? `/${tests[0].total_questions}` : ""}
-          status={tests?.[0]?.test_name}
+          value={tests[0]?.score !== null && tests[0]?.score !== undefined ? `${tests[0].score}` : "-"}
+          unit={tests[0]?.totalQuestions ? `/${tests[0].totalQuestions}` : ""}
+          status={tests[0]?.testName}
         />
       </div>
 
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <Panel title="Upcoming">
-          {upcoming && upcoming.length > 0 ? (
-            <ul className="space-y-3">
-              {upcoming.map((entry) => (
-                <li key={entry.id} className="rounded-2xl border border-border bg-surface p-4">
-                  <p className="text-sm font-semibold text-text">{entry.subject}</p>
-                  <p className="mt-1 text-xs text-text-muted">{entry.syllabus}</p>
-                  <p className="mt-2 text-xs font-semibold text-primary">{entry.date}</p>
+      <div className="mt-6 grid gap-5">
+        <Panel title="Daily Accountability">
+          <SectionLead
+            title="1. Daily Accountability"
+            subtitle="Fill this once every day so your mentor can review consistency, routine, and execution."
+            tag="You Fill"
+            tone="student"
+          />
+          <form action="/api/daily-logs" method="post" className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Date
+              <input
+                type="date"
+                name="date"
+                defaultValue={today}
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Study Hours
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                name="studyHours"
+                defaultValue={log?.studyHours ?? 0}
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Sleep Hours
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                name="sleepHours"
+                defaultValue={0}
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Meditation Minutes
+              <input
+                type="number"
+                min="0"
+                name="meditationMinutes"
+                defaultValue={0}
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Sleep Time
+              <input
+                name="sleepTime"
+                placeholder="11:30 PM"
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Wake Time
+              <input
+                name="wakeTime"
+                placeholder="6:00 AM"
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Task Completed
+              <select
+                name="taskCompleted"
+                defaultValue={log?.taskCompleted ?? ""}
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              >
+                <option value="">Select</option>
+                <option value="yes">Yes</option>
+                <option value="partial">Partial</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Afternoon Nap (Min)
+              <input
+                type="number"
+                min="0"
+                name="afternoonNapMinutes"
+                defaultValue={0}
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-text-muted">
+              <input type="checkbox" name="hadMentorDiscussion" className="h-4 w-4 rounded border-border" />
+              1-to-1 Discussion Done
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted md:col-span-3">
+              Relaxation Activity
+              <input
+                name="relaxationActivity"
+                placeholder="Journalling, workout, walk..."
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+              />
+            </label>
+            <div className="md:col-span-3">
+              <button
+                type="submit"
+                className="inline-flex rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white"
+              >
+                Save Daily Log
+              </button>
+            </div>
+          </form>
+        </Panel>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <Panel title="Upcoming">
+            <SectionLead
+              title="2. Mentor Schedule"
+              subtitle="These are your upcoming schedule entries assigned by mentor."
+              tag="Mentor Fills"
+              tone="mentor"
+            />
+            {upcoming.length > 0 ? (
+              <ul className="space-y-3">
+                {upcoming.map((entry) => (
+                  <li key={entry.id} className="rounded-2xl border border-border bg-surface p-4">
+                    <p className="text-sm font-semibold text-text">{entry.subject}</p>
+                    <p className="mt-1 text-xs text-text-muted">{entry.syllabus}</p>
+                    <p className="mt-2 text-xs font-semibold text-primary">{entry.date}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-text-muted">No upcoming entries.</p>
+            )}
+          </Panel>
+
+          <Panel title="Test History">
+            <SectionLead
+              title="3. Previous Test Records"
+              subtitle="Your submitted tests and score trend."
+              tag="Shared"
+              tone="shared"
+            />
+            {tests.length > 0 ? (
+              <ul className="space-y-3">
+                {tests.map((test) => {
+                  const pct =
+                    test.score !== null && test.totalQuestions
+                      ? Math.round((test.score / test.totalQuestions) * 100)
+                      : null;
+                  return (
+                    <li key={test.id} className="rounded-2xl border border-border bg-surface p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-text">{test.testName}</p>
+                          <p className="text-xs text-text-muted">{test.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-display text-2xl font-bold tracking-tight text-text">
+                            {test.score ?? "-"}
+                            {test.totalQuestions ? (
+                              <span className="ml-1 text-sm font-medium text-text-muted">
+                                /{test.totalQuestions}
+                              </span>
+                            ) : null}
+                          </p>
+                          {pct !== null ? (
+                            <p className="text-xs font-semibold text-accent">{pct}%</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-text-muted">No tests recorded yet.</p>
+            )}
+          </Panel>
+        </div>
+
+        <Panel title="Prelims Mistake Analysis Entry">
+          <SectionLead
+            title="4. Mistake Analysis Submission"
+            subtitle="Enter your latest mock analysis across all 8 mistake categories."
+            tag="You Fill"
+            tone="student"
+          />
+          <form action="/api/tests" method="post" className="grid gap-3 md:grid-cols-3">
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Test Name
+              <input name="testName" required className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Date
+              <input type="date" name="date" defaultValue={today} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Score
+              <input type="number" step="0.5" min="0" name="score" defaultValue={0} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            </label>
+            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+              Total Questions
+              <input type="number" min="0" name="totalQuestions" defaultValue={100} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            </label>
+            {[
+              ["mistakeConceptual", "Conceptual"],
+              ["mistakeRecall", "Recall"],
+              ["mistakeReading", "Reading"],
+              ["mistakeElimination", "Elimination"],
+              ["mistakeDecisionMaking", "Decision-Making"],
+              ["mistakeSilly", "Silly"],
+              ["mistakePsychological", "Psychological"],
+              ["mistakePatternMisjudgment", "Pattern"],
+            ].map(([name, label]) => (
+              <label key={name} className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+                {label}
+                <input
+                  type="number"
+                  min="0"
+                  name={name}
+                  defaultValue={0}
+                  className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                />
+              </label>
+            ))}
+            <div className="md:col-span-3">
+              <button type="submit" className="inline-flex rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
+                Save Test Analysis
+              </button>
+            </div>
+          </form>
+        </Panel>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <Panel title="Yearly Plan">
+            <SectionLead
+              title="5. Yearly Plan"
+              subtitle="Month-wise plan so mentor can track macro direction."
+              tag="You Fill"
+              tone="student"
+            />
+            <form action="/api/yearly-plan" method="post" className="grid gap-2">
+              <input name="month" placeholder="JAN / FEB / MAR" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <input name="subject1" placeholder="Subject 1" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <input name="subject2" placeholder="Subject 2" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <input name="subject3" placeholder="Subject 3" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <input name="notes" placeholder="Notes" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <button type="submit" className="mt-1 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
+                Save Month Plan
+              </button>
+            </form>
+            <ul className="mt-4 space-y-2">
+              {yearlyPlan.map((entry) => (
+                <li key={entry.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                  <span className="font-semibold text-text">{entry.month}</span>{" "}
+                  {formatValue([entry.subject1, entry.subject2, entry.subject3].filter(Boolean))}
                 </li>
               ))}
             </ul>
+          </Panel>
+
+          <Panel title="Alternate Schedule">
+            <SectionLead
+              title="6. Alternate Schedule"
+              subtitle="Use this when your routine changes and you need fallback planning."
+              tag="You Fill"
+              tone="student"
+            />
+            <form action="/api/alternate-schedule" method="post" className="grid gap-2">
+              <input type="date" name="date" defaultValue={today} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <input name="focus" placeholder="Focus area" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <input name="note" placeholder="Note" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              <button type="submit" className="mt-1 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
+                Add Alternate Plan
+              </button>
+            </form>
+            <ul className="mt-4 space-y-2">
+              {alternateSchedule.map((entry) => (
+                <li key={entry.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                  <span className="font-semibold text-text">{entry.date}</span> · {entry.focus ?? "-"} · {entry.note ?? "-"}
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </div>
+
+        <Panel title="Recent Daily Logs">
+          <SectionLead
+            title="Recent Accountability History"
+            subtitle="Quick view of your latest submissions."
+            tag="Shared"
+            tone="shared"
+          />
+          {dailyHistory.length === 0 ? (
+            <p className="text-sm text-text-muted">No daily logs yet.</p>
           ) : (
-            <p className="text-sm text-text-muted">No upcoming entries.</p>
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead className="bg-surface-soft">
+                  <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Study</th>
+                    <th className="px-4 py-3">Sleep</th>
+                    <th className="px-4 py-3">Meditation</th>
+                    <th className="px-4 py-3">Task</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailyHistory.map((row) => (
+                    <tr key={row.date} className="border-t border-border bg-white">
+                      <td className="px-4 py-3">{row.date}</td>
+                      <td className="px-4 py-3">{row.studyHours}h</td>
+                      <td className="px-4 py-3">{row.sleepHours}h</td>
+                      <td className="px-4 py-3">{row.meditationMinutes}m</td>
+                      <td className="px-4 py-3">{row.taskCompleted ?? "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Panel>
 
-        <Panel title="Test History">
-          {tests && tests.length > 0 ? (
-            <ul className="space-y-3">
-              {tests.map((test) => {
-                const pct = Math.round((test.score / test.total_questions) * 100);
-                return (
-                  <li key={test.id} className="rounded-2xl border border-border bg-surface p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">{test.test_name}</p>
-                        <p className="text-xs text-text-muted">{test.date}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-display text-2xl font-bold tracking-tight text-text">
-                          {test.score}
-                          <span className="ml-1 text-sm font-medium text-text-muted">
-                            /{test.total_questions}
-                          </span>
-                        </p>
-                        <p className="text-xs font-semibold text-accent">{pct}%</p>
-                      </div>
-                    </div>
+        <div className="grid gap-5 md:grid-cols-2">
+          <Panel title="Mentor Academic & Personality Audit">
+            <SectionLead
+              title="Mentor Audit Notes"
+              subtitle="Mentor-entered strengths, weaknesses, and behavioral feedback."
+              tag="Mentor Fills"
+              tone="mentor"
+            />
+            {studentAudit ? (
+              <div className="grid gap-2 text-xs">
+                <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                  <p className="font-semibold text-text">Strong Subjects</p>
+                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.strongAcademicSubjects)}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                  <p className="font-semibold text-text">Subjects to Improve</p>
+                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.weakAcademicSubjects)}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                  <p className="font-semibold text-text">Strong Traits</p>
+                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.strongPersonalityTraits)}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-surface px-3 py-2">
+                  <p className="font-semibold text-text">Traits to Improve</p>
+                  <p className="mt-1 text-text-muted">{formatValue(studentAudit.weakPersonalityTraits)}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-text-muted">Your mentor has not added audit notes yet.</p>
+            )}
+          </Panel>
+
+          <Panel title="Mentor Resource Mapping">
+            <SectionLead
+              title="Mentor Resources"
+              subtitle="Curated subject/topic resources from your mentor."
+              tag="Mentor Fills"
+              tone="mentor"
+            />
+            {mentorResources.length === 0 ? (
+              <p className="text-sm text-text-muted">No mentor resources shared yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {mentorResources.map((row) => (
+                  <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                    <p className="font-semibold text-text">{row.subject}</p>
+                    <p className="mt-1">{row.part ?? "-"} · {row.resource ?? "-"}</p>
+                    <p className="mt-1">Prelims PYQ: {row.prelimsPyqPractice ?? "-"}</p>
+                    <p className="mt-1">Mains PYQ: {row.mainsPyq ?? "-"}</p>
                   </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-sm text-text-muted">No tests recorded yet.</p>
-          )}
-        </Panel>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        </div>
       </div>
     </div>
   );
@@ -269,26 +836,104 @@ async function MentorDashboard({
   mentorId: string;
   boughtPlan?: string;
 }) {
-  const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
   const yesterdayDate = new Date();
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
   const yesterday = yesterdayDate.toISOString().slice(0, 10);
 
-  const [{ data: students }, { data: recentLogs }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, name, mobile")
-      .eq("role", "student")
-      .eq("mentor_id", mentorId)
-      .order("name"),
-    supabase.from("daily_logs").select("user_id, date, study_hours").gte("date", yesterday),
+  const [students, recentLogs, recentSchedules, resourceMappings, studentLogs, studentTests, studentPlans] = await Promise.all([
+    prisma.$queryRaw<{ id: string; name: string | null; mobile: string | null; telegramId: string | null }[]>`
+      SELECT
+        id,
+        name,
+        mobile,
+        telegram_id AS "telegramId"
+      FROM profiles
+      WHERE role = 'student'::"Role"
+        AND mentor_id = ${mentorId}::uuid
+      ORDER BY name ASC NULLS LAST, created_at ASC
+    `,
+    prisma.$queryRaw<{ userId: string; date: string; studyHours: number }[]>`
+      SELECT
+        user_id AS "userId",
+        date::text AS "date",
+        study_hours::float AS "studyHours"
+      FROM daily_logs
+      WHERE user_id IN (
+        SELECT id FROM profiles WHERE mentor_id = ${mentorId}::uuid AND role = 'student'::"Role"
+      )
+        AND date >= ${yesterday}::date
+    `,
+    prisma.$queryRaw<{ id: string; studentName: string | null; date: string; subject: string | null }[]>`
+      SELECT
+        s.id,
+        p.name AS "studentName",
+        s.date::text AS "date",
+        s.subject
+      FROM schedule_entries s
+      JOIN profiles p ON p.id = s.user_id
+      WHERE p.mentor_id = ${mentorId}::uuid
+      ORDER BY s.date DESC
+      LIMIT 10
+    `,
+    prisma.$queryRaw<{ id: string; subject: string; part: string | null; resource: string | null }[]>`
+      SELECT
+        id,
+        subject,
+        part,
+        resource
+      FROM resource_mapping_entries
+      WHERE owner_id = ${mentorId}::uuid
+      ORDER BY created_at DESC
+      LIMIT 20
+    `,
+    prisma.$queryRaw<MentorStudentLogRecord[]>`
+      SELECT
+        l.id,
+        p.name AS "studentName",
+        l.date::text AS "date",
+        l.study_hours::float AS "studyHours",
+        l.sleep_hours::float AS "sleepHours",
+        l.task_completed::text AS "taskCompleted"
+      FROM daily_logs l
+      JOIN profiles p ON p.id = l.user_id
+      WHERE p.mentor_id = ${mentorId}::uuid
+      ORDER BY l.date DESC
+      LIMIT 20
+    `,
+    prisma.$queryRaw<MentorStudentTestRecord[]>`
+      SELECT
+        t.id,
+        p.name AS "studentName",
+        t.test_name AS "testName",
+        t.date::text AS "date",
+        t.score::float AS "score",
+        t.total_questions AS "totalQuestions"
+      FROM test_results t
+      JOIN profiles p ON p.id = t.user_id
+      WHERE p.mentor_id = ${mentorId}::uuid
+      ORDER BY t.date DESC
+      LIMIT 20
+    `,
+    prisma.$queryRaw<MentorStudentPlanRecord[]>`
+      SELECT
+        y.id,
+        p.name AS "studentName",
+        y.month,
+        y.subject_1 AS "subject1",
+        y.subject_2 AS "subject2",
+        y.subject_3 AS "subject3"
+      FROM yearly_plan_entries y
+      JOIN profiles p ON p.id = y.user_id
+      WHERE p.mentor_id = ${mentorId}::uuid
+      ORDER BY y.updated_at DESC
+      LIMIT 20
+    `,
   ]);
 
-  type LogRow = { user_id: string; date: string; study_hours: number };
-  const logMap = new Map<string, LogRow>();
-  (recentLogs ?? []).forEach((log) => logMap.set(log.user_id, log as LogRow));
-  const loggedToday = (students ?? []).filter((student) => logMap.get(student.id)?.date === today).length;
+  const logMap = new Map<string, { userId: string; date: string; studyHours: number }>();
+  recentLogs.forEach((log) => logMap.set(log.userId, log));
+  const loggedToday = students.filter((student) => logMap.get(student.id)?.date === today).length;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-6 sm:py-12">
@@ -309,20 +954,27 @@ async function MentorDashboard({
       </div>
 
       <Panel title="Assigned Students">
-        {(students ?? []).length === 0 ? (
+        <SectionLead
+          title="Assigned Students Snapshot"
+          subtitle="Core roster with latest activity status."
+          tag="Shared View"
+          tone="shared"
+        />
+        {students.length === 0 ? (
           <p className="text-sm text-text-muted">No students assigned yet.</p>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full min-w-[620px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-surface-soft">
                 <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
                   <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Telegram</th>
                   <th className="px-4 py-3">Last activity</th>
                   <th className="px-4 py-3 text-right">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {(students ?? []).map((student) => {
+                {students.map((student) => {
                   const log = logMap.get(student.id);
                   const active = log?.date === today;
 
@@ -332,8 +984,9 @@ async function MentorDashboard({
                         <p className="font-semibold text-text">{student.name ?? "-"}</p>
                         <p className="text-xs text-text-muted">{student.mobile ?? ""}</p>
                       </td>
+                      <td className="px-4 py-3 text-text-muted">{student.telegramId ?? "-"}</td>
                       <td className="px-4 py-3 text-text-muted">
-                        {log ? `${log.date} · ${log.study_hours}h` : "No log"}
+                        {log ? `${log.date} · ${log.studyHours}h` : "No log"}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span
@@ -347,6 +1000,187 @@ async function MentorDashboard({
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <div className="mt-6 grid gap-5 md:grid-cols-2">
+        <Panel title="Schedule by Mentor">
+          <SectionLead
+            title="1. Create Schedule Entry"
+            subtitle="Assign day-wise tasks, syllabus and source for any assigned student."
+            tag="You Fill"
+            tone="mentor"
+          />
+          <form action="/api/mentor/schedule" method="post" className="grid gap-2">
+            <select name="studentId" required className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text">
+              <option value="">Select student</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name ?? student.id}
+                </option>
+              ))}
+            </select>
+            <input type="date" name="date" defaultValue={today} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="subject" placeholder="Subject" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="syllabus" placeholder="Syllabus" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="primarySource" placeholder="Primary source" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <select name="entryType" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text">
+              <option value="study">Study</option>
+              <option value="ca-test">CA Test</option>
+              <option value="sectional-test">Sectional Test</option>
+              <option value="mentor-connect">Mentor Connect</option>
+            </select>
+            <button type="submit" className="mt-1 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
+              Assign Schedule
+            </button>
+          </form>
+        </Panel>
+
+        <Panel title="Personality & Academic Audit">
+          <SectionLead
+            title="2. Update Student Audit"
+            subtitle="Document strengths, weak areas and personality traits for each student."
+            tag="You Fill"
+            tone="mentor"
+          />
+          <form action="/api/mentor/student-audit" method="post" className="grid gap-2">
+            <select name="studentId" required className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text">
+              <option value="">Select student</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name ?? student.id}
+                </option>
+              ))}
+            </select>
+            <input name="strongAcademicSubjects" placeholder="Strong subjects (comma separated)" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="weakAcademicSubjects" placeholder="Weak subjects (comma separated)" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="strongPersonalityTraits" placeholder="Strong traits (comma separated)" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="weakPersonalityTraits" placeholder="Traits to improve (comma separated)" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <button type="submit" className="mt-1 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
+              Save Audit
+            </button>
+          </form>
+        </Panel>
+      </div>
+
+      <div className="mt-5 grid gap-5 md:grid-cols-2">
+        <Panel title="Resource Mapping">
+          <SectionLead
+            title="3. Add Resource Mapping"
+            subtitle="Build a reusable subject-part-resource knowledge base."
+            tag="You Fill"
+            tone="mentor"
+          />
+          <form action="/api/resource-mapping" method="post" className="grid gap-2">
+            <input name="subject" required placeholder="Subject" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="part" placeholder="Part / Topic" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="resource" placeholder="Resource" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="prelimsPyqPractice" placeholder="Prelims PYQ practice" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <input name="mainsPyq" placeholder="Mains PYQ" className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+            <button type="submit" className="mt-1 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
+              Add Mapping
+            </button>
+          </form>
+          <ul className="mt-4 space-y-2">
+            {resourceMappings.map((row) => (
+              <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                <span className="font-semibold text-text">{row.subject}</span> · {row.part ?? "-"} · {row.resource ?? "-"}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+
+        <Panel title="Recent Schedule Entries">
+          <SectionLead
+            title="Recently Assigned Schedules"
+            subtitle="Most recent assignments across your students."
+            tag="Shared"
+            tone="shared"
+          />
+          <ul className="space-y-2">
+            {recentSchedules.map((row) => (
+              <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                <span className="font-semibold text-text">{row.date}</span> · {row.studentName ?? "-"} · {row.subject ?? "-"}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </div>
+
+      <div className="mt-5 grid gap-5 md:grid-cols-2">
+        <Panel title="Student Daily Submissions">
+          <SectionLead
+            title="4. Student Daily Logs"
+            subtitle="What students submitted in accountability tracking."
+            tag="Student Fills"
+            tone="student"
+          />
+          {studentLogs.length === 0 ? (
+            <p className="text-sm text-text-muted">No daily submissions yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {studentLogs.map((row) => (
+                <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                  <span className="font-semibold text-text">{row.date}</span> · {row.studentName ?? "-"} · Study {row.studyHours}h · Sleep {row.sleepHours}h · Task {row.taskCompleted ?? "-"}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <Panel title="Student Test Submissions">
+          <SectionLead
+            title="5. Student Test Analysis"
+            subtitle="Latest mock performance and analysis submitted by students."
+            tag="Student Fills"
+            tone="student"
+          />
+          {studentTests.length === 0 ? (
+            <p className="text-sm text-text-muted">No test submissions yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {studentTests.map((row) => (
+                <li key={row.id} className="rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-muted">
+                  <span className="font-semibold text-text">{row.date}</span> · {row.studentName ?? "-"} · {row.testName} · {row.score ?? "-"}{row.totalQuestions ? `/${row.totalQuestions}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
+
+      <Panel title="Student Yearly Plans">
+        <SectionLead
+          title="6. Student Yearly Plans"
+          subtitle="Month-wise macro plans entered by students."
+          tag="Student Fills"
+          tone="student"
+        />
+        {studentPlans.length === 0 ? (
+          <p className="text-sm text-text-muted">No yearly plans submitted yet.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-border">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="bg-surface-soft">
+                <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Month</th>
+                  <th className="px-4 py-3">Subjects</th>
+                </tr>
+              </thead>
+              <tbody>
+                {studentPlans.map((row) => (
+                  <tr key={row.id} className="border-t border-border bg-white">
+                    <td className="px-4 py-3">{row.studentName ?? "-"}</td>
+                    <td className="px-4 py-3">{row.month}</td>
+                    <td className="px-4 py-3 text-text-muted">
+                      {formatValue([row.subject1, row.subject2, row.subject3].filter(Boolean))}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -1054,7 +1888,12 @@ export default async function DashboardPage({
       {safeProfile.role === "mentor" ? (
         <MentorDashboard profile={safeProfile} mentorId={user.id} boughtPlan={bought} />
       ) : (
-        <StudentDashboard profile={safeProfile} assignedMentor={assignedMentor} boughtPlan={bought} />
+        <StudentDashboard
+          userId={user.id}
+          profile={safeProfile}
+          assignedMentor={assignedMentor}
+          boughtPlan={bought}
+        />
       )}
     </div>
   );
