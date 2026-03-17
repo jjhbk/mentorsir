@@ -33,9 +33,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/enroll', request.url));
   }
 
+  // Skip auth entry pages when already logged in
+  if (
+    user &&
+    (request.nextUrl.pathname === '/enroll' ||
+      request.nextUrl.pathname === '/mentor-login')
+  ) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   return supabaseResponse;
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: ['/dashboard/:path*', '/enroll', '/mentor-login'],
 };
