@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PaymentButton } from "@seedhape/react";
 import { useRouter } from "next/navigation";
 import type { PaymentResult } from "@seedhape/sdk";
+import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import MentorChatModal from "@/components/dashboard/MentorChatModal";
 import { createClient } from "@/lib/supabase/client";
 
@@ -83,8 +84,8 @@ export default function DashboardTopBar({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages", filter },
-        (payload) => {
-          const row = payload.new as { sender_id: string };
+        (payload: RealtimePostgresInsertPayload<{ sender_id: string }>) => {
+          const row = payload.new;
           if (row.sender_id === currentUserId) return;
           setUnreadCount((value) => value + 1);
         }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 type RoleLabel = "student" | "mentor" | "admin" | string;
@@ -139,15 +140,17 @@ export default function MentorChatModal({
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages" },
-        (payload) => {
-          const row = payload.new as {
+        (
+          payload: RealtimePostgresInsertPayload<{
             id: string;
             mentor_id: string;
             student_id: string;
             sender_id: string;
             message: string;
             created_at: string;
-          };
+          }>
+        ) => {
+          const row = payload.new;
           const normalized: ChatMessage = {
             id: row.id,
             mentorId: row.mentor_id,
@@ -211,10 +214,11 @@ export default function MentorChatModal({
       return;
     }
 
-    if (payload?.message) {
+    const nextMessage = payload?.message;
+    if (nextMessage) {
       setMessages((prev) => {
-        if (prev.some((message) => message.id === payload.message?.id)) return prev;
-        return [...prev, payload.message];
+        if (prev.some((message) => message.id === nextMessage.id)) return prev;
+        return [...prev, nextMessage];
       });
     }
     setDraft("");
