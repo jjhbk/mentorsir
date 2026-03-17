@@ -3,7 +3,7 @@ import Link from "next/link";
 const plans = [
   {
     code: "ptp_3m",
-    title: "Pre Training Program",
+    title: "Prelims Mentoring Program 2.0",
     subtitle: "Experience the power of right mentorship",
     duration: "3 Months",
     description:
@@ -14,9 +14,8 @@ const plans = [
       "Current Affairs: 1.5-year integrated, Prelims-focused current affairs with smart revision",
       "Mentorship: Guidance by selected candidates with psychology support for exam resilience",
     ],
-    friendOffer: "Bring a Friend Offer: ₹10,999 each",
-    oldPrice: "₹6,999",
-    currentPrice: "₹5,999",
+    oldPrice: "₹11,999",
+    currentPrice: "₹6,999",
     featured: false,
   },
   {
@@ -34,7 +33,6 @@ const plans = [
       "Peer Group Learning",
       "Meditation",
     ],
-    friendOffer: "Bring a Friend Offer: ₹10,999 each",
     oldPrice: "₹24,000",
     currentPrice: "₹11,999",
     featured: true,
@@ -88,10 +86,6 @@ export default function PricingSection() {
                   </li>
                 ))}
               </ul>
-
-              <p className={`mt-6 text-xs font-semibold uppercase tracking-[0.12em] ${plan.featured ? "text-amber-200" : "text-accent"}`}>
-                {plan.friendOffer}
-              </p>
 
               <div className="mt-4 flex items-end gap-3">
                 <span className={`text-sm line-through ${plan.featured ? "text-white/55" : "text-text-muted"}`}>{plan.oldPrice}</span>

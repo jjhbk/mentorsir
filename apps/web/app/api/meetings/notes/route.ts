@@ -67,5 +67,5 @@ export async function POST(request: NextRequest) {
     `;
   }
 
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  return NextResponse.json({ ok: true });
 }

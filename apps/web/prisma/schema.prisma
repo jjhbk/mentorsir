@@ -27,6 +27,7 @@ model Profile {
   dailyLogs           DailyLog[]
   scheduleEntries     ScheduleEntry[]
   testResults         TestResult[]
+  studySessions       StudySession[]
   studentAudit        StudentAudit?
   mentorAccessRequest MentorAccessRequest?
   planSubscriptions   PlanSubscription[]
@@ -68,6 +69,11 @@ enum MeetingApprovalStatus {
   pending
   approved
   rejected
+}
+
+enum MeetingNoteAudioRole {
+  student
+  mentor
 }
 
 // ── Intake Forms ───────────────────────────────────────────────────────────────
@@ -163,6 +169,43 @@ enum EntryType {
   ca_test        @map("ca-test")
   sectional_test @map("sectional-test")
   mentor_connect @map("mentor-connect")
+}
+
+enum StudySubject {
+  polity
+  geography
+  economy
+  csat
+  prelims
+  mains
+  interview
+}
+
+enum StudySessionStatus {
+  active
+  paused
+  completed
+}
+
+// ── Study Sessions ────────────────────────────────────────────────────────────
+// Stopwatch-style study timer sessions, including pause/resume state.
+model StudySession {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String             @map("user_id") @db.Uuid
+  subject          StudySubject
+  status           StudySessionStatus @default(active)
+  startedAt        DateTime           @default(now()) @map("started_at") @db.Timestamptz
+  segmentStartedAt DateTime?          @map("segment_started_at") @db.Timestamptz
+  accumulatedSeconds Int              @default(0) @map("accumulated_seconds")
+  endedAt          DateTime?          @map("ended_at") @db.Timestamptz
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@index([userId, status])
+  @@map("study_sessions")
 }
 
 // ── Test Results ───────────────────────────────────────────────────────────────
@@ -368,16 +411,34 @@ model MentorMeeting {
   meetingLink    String?  @map("meeting_link")
   agenda         String?
   studentNotes   String?  @map("student_notes")
+  studentNotesAudioUrl String? @map("student_notes_audio_url")
   mentorNotes    String?  @map("mentor_notes")
+  mentorNotesAudioUrl String? @map("mentor_notes_audio_url")
   reviewedAt     DateTime? @map("reviewed_at") @db.Timestamptz
   reviewedBy     String?   @map("reviewed_by") @db.Uuid
   rejectionReason String?  @map("rejection_reason")
   createdBy      String   @map("created_by") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  noteAudioClips MentorMeetingNoteAudio[]
 
   @@index([mentorId, scheduledAt])
   @@index([studentId, scheduledAt])
   @@index([mentorId, studentId, scheduledAt])
   @@map("mentor_meetings")
+}
+
+// ── Mentor Meeting Note Audios ────────────────────────────────────────────────
+// Multiple audio clips attached to meeting private notes, scoped by role.
+model MentorMeetingNoteAudio {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meetingId String               @map("meeting_id") @db.Uuid
+  role      MeetingNoteAudioRole
+  url       String
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz
+
+  meeting MentorMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId, role, createdAt])
+  @@map("mentor_meeting_note_audios")
 }

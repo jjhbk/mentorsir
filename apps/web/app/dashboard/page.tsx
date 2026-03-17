@@ -5,6 +5,8 @@ import { isAdminEmail } from "@/lib/admin";
 import { prisma } from "@/lib/prisma";
 import { autoAssignMentorIfMissing } from "@/lib/mentorAssignment";
 import DashboardTopBar from "@/components/dashboard/DashboardTopBar";
+import StudyTimerPanel from "@/components/dashboard/StudyTimerPanel";
+import MeetingNotesEditor from "@/components/dashboard/MeetingNotesEditor";
 import {
   DailySubmissionsList,
   TestSubmissionsList,
@@ -107,6 +109,16 @@ interface StudentTestRecord {
   mistakeSilly: number;
   mistakePsychological: number;
   mistakePatternMisjudgment: number;
+}
+
+interface StudySessionRecord {
+  id: string;
+  subject: "polity" | "geography" | "economy" | "csat" | "prelims" | "mains" | "interview";
+  status: "active" | "paused" | "completed";
+  startedAt: string;
+  segmentStartedAt: string | null;
+  accumulatedSeconds: number;
+  endedAt: string | null;
 }
 
 interface StudentDailyHistoryRecord {
@@ -214,6 +226,7 @@ interface StudentMeetingRecord {
   meetingLink: string | null;
   agenda: string | null;
   studentNotes: string | null;
+  studentNotesAudioUrls: string[];
   rejectionReason: string | null;
 }
 
@@ -227,6 +240,7 @@ interface MentorMeetingRecord {
   meetingLink: string | null;
   agenda: string | null;
   mentorNotes: string | null;
+  mentorNotesAudioUrls: string[];
   rejectionReason: string | null;
 }
 
@@ -362,6 +376,109 @@ function StudyHoursHistoryGraph({
   );
 }
 
+function TestProgressGraph({
+  points,
+  benchmarkPercent,
+  highestScorerPercent,
+}: {
+  points: Array<{ label: string; percent: number | null }>;
+  benchmarkPercent: number;
+  highestScorerPercent: number | null;
+}) {
+  if (points.length === 0) return null;
+
+  const width = 760;
+  const height = 220;
+  const padding = 30;
+  const denominator = Math.max(1, points.length - 1);
+  const toY = (value: number) => height - padding - (value / 100) * (height - padding * 2);
+  const benchmarkY = toY(Math.max(0, Math.min(100, benchmarkPercent)));
+  const highestY =
+    highestScorerPercent === null ? null : toY(Math.max(0, Math.min(100, highestScorerPercent)));
+
+  const plotPoints = points.map((item, index) => {
+    const x = padding + (index / denominator) * (width - padding * 2);
+    const y = item.percent === null ? null : toY(Math.max(0, Math.min(100, item.percent)));
+    return { ...item, x, y };
+  });
+  const linePoints = plotPoints
+    .filter((point): point is typeof point & { y: number } => point.y !== null)
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
+
+  return (
+    <div className="mb-4 rounded-2xl border border-border bg-surface p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
+        <p className="font-semibold uppercase tracking-[0.08em] text-text-muted">
+          Test-Wise Marks Progression
+        </p>
+        <span className="font-medium text-sky-700">● Your score%</span>
+        <span className="font-medium text-emerald-700">● Benchmark {benchmarkPercent}%</span>
+        {highestScorerPercent !== null ? (
+          <span className="font-medium text-amber-700">
+            ● Highest scorer {Math.round(highestScorerPercent)}%
+          </span>
+        ) : null}
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-56 min-w-[760px] w-full">
+          <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#d6d6d8" strokeWidth="1" />
+          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#d6d6d8" strokeWidth="1" />
+          <line x1={padding} y1={benchmarkY} x2={width - padding} y2={benchmarkY} stroke="#16a34a" strokeWidth="1.5" strokeDasharray="5 4" />
+          {highestY !== null ? (
+            <line x1={padding} y1={highestY} x2={width - padding} y2={highestY} stroke="#d97706" strokeWidth="1.5" strokeDasharray="5 4" />
+          ) : null}
+          {linePoints ? <polyline fill="none" stroke="#0ea5e9" strokeWidth="2.5" points={linePoints} /> : null}
+          {plotPoints.map((point) => (
+            <g key={`${point.label}-${point.x}`}>
+              {point.y !== null ? <circle cx={point.x} cy={point.y} r="3.5" fill="#0ea5e9" /> : null}
+              <text x={point.x} y={height - padding + 14} textAnchor="middle" fontSize="10" fill="#6b7280">
+                {point.label}
+              </text>
+            </g>
+          ))}
+          <text x={padding - 8} y={padding + 4} textAnchor="end" fontSize="10" fill="#6b7280">
+            100%
+          </text>
+          <text x={padding - 8} y={height - padding + 4} textAnchor="end" fontSize="10" fill="#6b7280">
+            0%
+          </text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function MistakeBreakdownChart({
+  items,
+}: {
+  items: Array<{ label: string; value: number }>;
+}) {
+  if (items.length === 0) {
+    return <p className="text-xs text-text-muted">No mistakes data available yet.</p>;
+  }
+
+  const maxValue = Math.max(1, ...items.map((item) => item.value));
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.label}>
+          <div className="mb-1 flex items-center justify-between text-[11px] text-text-muted">
+            <span>{item.label}</span>
+            <span className="font-semibold text-text">{item.value}</span>
+          </div>
+          <div className="h-2 rounded-full bg-surface-soft">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${Math.max(4, Math.round((item.value / maxValue) * 100))}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function IntakeField({ label, value }: { label: string; value: unknown }) {
   return (
     <div className="rounded-xl border border-border/70 bg-surface px-3 py-2">
@@ -384,7 +501,7 @@ async function StudentDashboard({
 }) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [todayLogs, upcoming, tests, dailyHistory, yearlyPlan, alternateSchedule, meetings] = await Promise.all([
+  const [todayLogs, upcoming, tests, studySessions, dailyHistory, yearlyPlan, alternateSchedule, meetings, highestScorerRows] = await Promise.all([
     prisma.$queryRaw<StudentTodayLogRecord[]>`
       SELECT
         study_hours::float AS "studyHours",
@@ -431,8 +548,23 @@ async function StudentDashboard({
         mistake_pattern_misjudgment AS "mistakePatternMisjudgment"
       FROM test_results
       WHERE user_id = ${userId}::uuid
-      ORDER BY date DESC
-      LIMIT 7
+      ORDER BY date DESC, created_at DESC
+      LIMIT 200
+    `,
+    prisma.$queryRaw<StudySessionRecord[]>`
+      SELECT
+        id,
+        subject::text AS "subject",
+        status::text AS "status",
+        started_at::text AS "startedAt",
+        segment_started_at::text AS "segmentStartedAt",
+        accumulated_seconds AS "accumulatedSeconds",
+        ended_at::text AS "endedAt"
+      FROM study_sessions
+      WHERE user_id = ${userId}::uuid
+        AND started_at::date = ${today}::date
+      ORDER BY started_at DESC
+      LIMIT 100
     `,
     prisma.$queryRaw<StudentDailyHistoryRecord[]>`
       SELECT
@@ -489,14 +621,50 @@ async function StudentDashboard({
         meeting_link AS "meetingLink",
         agenda,
         student_notes AS "studentNotes",
+        COALESCE((
+          SELECT array_agg(a.url ORDER BY a.created_at DESC)
+          FROM mentor_meeting_note_audios a
+          WHERE a.meeting_id = mentor_meetings.id
+            AND a.role = 'student'::"MeetingNoteAudioRole"
+        ), ARRAY[]::text[]) AS "studentNotesAudioUrls",
         rejection_reason AS "rejectionReason"
       FROM mentor_meetings
       WHERE student_id = ${userId}::uuid
       ORDER BY scheduled_at DESC
       LIMIT 12
     `,
+    prisma.$queryRaw<{ highestPercent: number | null }[]>`
+      SELECT
+        MAX((score::float / NULLIF(total_questions, 0)) * 100) AS "highestPercent"
+      FROM test_results
+      WHERE score IS NOT NULL
+        AND total_questions IS NOT NULL
+        AND total_questions > 0
+    `,
   ]);
   const log = todayLogs[0];
+  const highestScorerPercent = highestScorerRows[0]?.highestPercent ?? null;
+  const testsChronological = [...tests].reverse();
+  const benchmarkPercent = 66;
+  const testProgressPoints = testsChronological.map((test, index) => ({
+    label: `T${index + 1}`,
+    percent:
+      test.score !== null && test.totalQuestions && test.totalQuestions > 0
+        ? (test.score / test.totalQuestions) * 100
+        : null,
+  }));
+  const mistakeTotals = [
+    { label: "Conceptual", value: tests.reduce((sum, test) => sum + test.mistakeConceptual, 0) },
+    { label: "Recall", value: tests.reduce((sum, test) => sum + test.mistakeRecall, 0) },
+    { label: "Reading", value: tests.reduce((sum, test) => sum + test.mistakeReading, 0) },
+    { label: "Elimination", value: tests.reduce((sum, test) => sum + test.mistakeElimination, 0) },
+    { label: "Decision-Making", value: tests.reduce((sum, test) => sum + test.mistakeDecisionMaking, 0) },
+    { label: "Silly", value: tests.reduce((sum, test) => sum + test.mistakeSilly, 0) },
+    { label: "Psychological", value: tests.reduce((sum, test) => sum + test.mistakePsychological, 0) },
+    { label: "Pattern", value: tests.reduce((sum, test) => sum + test.mistakePatternMisjudgment, 0) },
+  ]
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
   const [studentAuditRows, mentorResources] = await Promise.all([
     prisma.$queryRaw<StudentAuditViewRecord[]>`
       SELECT
@@ -765,10 +933,20 @@ async function StudentDashboard({
           </form>
         </Panel>
 
+        <Panel title="Study Tracker">
+          <SectionLead
+            title="2. Study Timer / Tracker"
+            subtitle="Select subject and run stopwatch sessions with start, pause, resume, and stop."
+            tag="You Fill"
+            tone="student"
+          />
+          <StudyTimerPanel initialSessions={studySessions} />
+        </Panel>
+
         <div className="grid gap-5 md:grid-cols-2">
           <Panel title="Upcoming">
             <SectionLead
-              title="2. Mentor Schedule"
+              title="3. Mentor Schedule"
               subtitle="These are your upcoming schedule entries assigned by mentor."
               tag="Mentor Fills"
               tone="mentor"
@@ -790,13 +968,22 @@ async function StudentDashboard({
 
         <Panel title="Test History">
             <SectionLead
-              title="3. Previous Test Records"
-              subtitle="Your submitted tests and score trend."
+              title="4. Previous Test Records"
+              subtitle="Every new test is appended automatically. Track marks progression against benchmark and highest scorer."
               tag="Shared"
               tone="shared"
             />
             {tests.length > 0 ? (
-              <ul className="space-y-3">
+              <div>
+                <TestProgressGraph
+                  points={testProgressPoints}
+                  benchmarkPercent={benchmarkPercent}
+                  highestScorerPercent={highestScorerPercent}
+                />
+                <p className="mb-3 text-xs text-text-muted">
+                  Total tests recorded: {tests.length}
+                </p>
+                <ul className="space-y-3">
                 {tests.map((test) => {
                   const pct =
                     test.score !== null && test.totalQuestions
@@ -841,7 +1028,8 @@ async function StudentDashboard({
                   </li>
                 );
               })}
-              </ul>
+                </ul>
+              </div>
             ) : (
               <p className="text-sm text-text-muted">No tests recorded yet.</p>
             )}
@@ -850,61 +1038,82 @@ async function StudentDashboard({
 
         <Panel title="Prelims Mistake Analysis Entry">
           <SectionLead
-            title="4. Mistake Analysis Submission"
+            title="5. Mistake Analysis Submission"
             subtitle="Enter your latest mock analysis across all 8 mistake categories."
             tag="You Fill"
             tone="student"
           />
-          <form action="/api/tests" method="post" className="grid gap-3 md:grid-cols-3">
-            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
-              Test Name
-              <input name="testName" required className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            </label>
-            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
-              Date
-              <input type="date" name="date" defaultValue={today} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            </label>
-            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
-              Score
-              <input type="number" step="0.5" min="0" name="score" defaultValue={0} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            </label>
-            <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
-              Total Questions
-              <input type="number" min="0" name="totalQuestions" defaultValue={100} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
-            </label>
-            {[
-              ["mistakeConceptual", "Conceptual"],
-              ["mistakeRecall", "Recall"],
-              ["mistakeReading", "Reading"],
-              ["mistakeElimination", "Elimination"],
-              ["mistakeDecisionMaking", "Decision-Making"],
-              ["mistakeSilly", "Silly"],
-              ["mistakePsychological", "Psychological"],
-              ["mistakePatternMisjudgment", "Pattern"],
-            ].map(([name, label]) => (
-              <label key={name} className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
-                {label}
-                <input
-                  type="number"
-                  min="0"
-                  name={name}
-                  defaultValue={0}
-                  className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
-                />
+          <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+            <form action="/api/tests" method="post" className="grid gap-3 md:grid-cols-3">
+              <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+                Test Name
+                <input name="testName" required className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
               </label>
-            ))}
-            <div className="md:col-span-3">
-              <button type="submit" className="inline-flex rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
-                Save Test Analysis
-              </button>
+              <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+                Date
+                <input type="date" name="date" defaultValue={today} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              </label>
+              <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+                Score
+                <input type="number" step="0.5" min="0" name="score" defaultValue={0} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              </label>
+              <label className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+                Total Questions
+                <input type="number" min="0" name="totalQuestions" defaultValue={100} className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text" />
+              </label>
+              {[
+                ["mistakeConceptual", "Conceptual"],
+                ["mistakeRecall", "Recall"],
+                ["mistakeReading", "Reading"],
+                ["mistakeElimination", "Elimination"],
+                ["mistakeDecisionMaking", "Decision-Making"],
+                ["mistakeSilly", "Silly"],
+                ["mistakePsychological", "Psychological"],
+                ["mistakePatternMisjudgment", "Pattern"],
+              ].map(([name, label]) => (
+                <label key={name} className="grid gap-1 text-xs uppercase tracking-[0.08em] text-text-muted">
+                  {label}
+                  <input
+                    type="number"
+                    min="0"
+                    name={name}
+                    defaultValue={0}
+                    className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
+                  />
+                </label>
+              ))}
+              <div className="md:col-span-3 flex flex-wrap gap-2">
+                <button type="submit" className="inline-flex rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-white">
+                  Save Test Analysis
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex rounded-full border border-border px-5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-text-muted disabled:cursor-not-allowed disabled:opacity-70"
+                  title="Import will be enabled in upcoming update"
+                >
+                  Import CSV (Soon)
+                </button>
+              </div>
+            </form>
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                Top Mistakes Analytics
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                Combined across all saved test records.
+              </p>
+              <div className="mt-3">
+                <MistakeBreakdownChart items={mistakeTotals} />
+              </div>
             </div>
-          </form>
+          </div>
         </Panel>
 
         <div className="grid gap-5 md:grid-cols-2">
           <Panel title="Yearly Plan">
             <SectionLead
-              title="5. Yearly Plan"
+              title="6. Yearly Plan"
               subtitle="Month-wise plan so mentor can track macro direction."
               tag="You Fill"
               tone="student"
@@ -981,7 +1190,7 @@ async function StudentDashboard({
 
           <Panel title="Alternate Schedule">
             <SectionLead
-              title="6. Alternate Schedule"
+              title="7. Alternate Schedule"
               subtitle="Use this when your routine changes and you need fallback planning."
               tag="You Fill"
               tone="student"
@@ -1006,7 +1215,7 @@ async function StudentDashboard({
 
         <Panel title="Upcoming Meetings">
           <SectionLead
-            title="7. Upcoming Meetings"
+            title="8. Upcoming Meetings"
             subtitle="You can request meetings. Final confirmation happens only after mentor approval."
             tag="Shared"
             tone="shared"
@@ -1058,29 +1267,11 @@ async function StudentDashboard({
                       Private Notes
                     </summary>
                     <div className="mt-3">
-                      <form
-                        action="/api/meetings/notes"
-                        method="post"
-                        className="rounded-xl border border-border bg-surface p-3"
-                      >
-                        <input type="hidden" name="meetingId" value={meeting.id} />
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
-                          Your Private Notes
-                        </p>
-                        <textarea
-                          name="note"
-                          defaultValue={meeting.studentNotes ?? ""}
-                          rows={3}
-                          className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
-                          placeholder="Update your notes..."
-                        />
-                        <button
-                          type="submit"
-                          className="mt-2 inline-flex rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-text"
-                        >
-                          Save Notes
-                        </button>
-                      </form>
+                      <MeetingNotesEditor
+                        meetingId={meeting.id}
+                        defaultNote={meeting.studentNotes ?? ""}
+                        defaultAudioUrls={meeting.studentNotesAudioUrls}
+                      />
                     </div>
                   </details>
                 </div>
@@ -1338,6 +1529,12 @@ async function MentorDashboard({
         m.meeting_link AS "meetingLink",
         m.agenda,
         m.mentor_notes AS "mentorNotes",
+        COALESCE((
+          SELECT array_agg(a.url ORDER BY a.created_at DESC)
+          FROM mentor_meeting_note_audios a
+          WHERE a.meeting_id = m.id
+            AND a.role = 'mentor'::"MeetingNoteAudioRole"
+        ), ARRAY[]::text[]) AS "mentorNotesAudioUrls",
         m.rejection_reason AS "rejectionReason"
       FROM mentor_meetings m
       JOIN profiles p ON p.id = m.student_id
@@ -1777,34 +1974,16 @@ async function MentorDashboard({
                     Open Meeting Link
                   </a>
                 ) : null}
-                  <details className="mt-3 rounded-xl border border-border bg-white p-3">
-                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
-                      Private Notes
-                    </summary>
-                    <div className="mt-3">
-                      <form
-                        action="/api/meetings/notes"
-                        method="post"
-                        className="rounded-xl border border-border bg-surface p-3"
-                      >
-                        <input type="hidden" name="meetingId" value={meeting.id} />
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
-                        Your Private Notes
-                      </p>
-                      <textarea
-                        name="note"
-                        defaultValue={meeting.mentorNotes ?? ""}
-                        rows={3}
-                        className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-text"
-                        placeholder="Update your notes..."
-                      />
-                      <button
-                        type="submit"
-                        className="mt-2 inline-flex rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-text"
-                      >
-                        Save Notes
-                      </button>
-                    </form>
+                <details className="mt-3 rounded-xl border border-border bg-white p-3">
+                  <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">
+                    Private Notes
+                  </summary>
+                  <div className="mt-3">
+                    <MeetingNotesEditor
+                      meetingId={meeting.id}
+                      defaultNote={meeting.mentorNotes ?? ""}
+                      defaultAudioUrls={meeting.mentorNotesAudioUrls}
+                    />
                   </div>
                 </details>
               </div>
