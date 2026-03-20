@@ -28,6 +28,21 @@ interface StudentsState {
   ) => Promise<void>;
 }
 
+interface DailyLogRow {
+  user_id: string;
+  date: string;
+  study_hours: number;
+  task_completed: string;
+}
+
+interface AuditRow {
+  user_id: string;
+  strong_academic_subjects: string[] | null;
+  weak_academic_subjects: string[] | null;
+  strong_personality_traits: string[] | null;
+  weak_personality_traits: string[] | null;
+}
+
 export const useStudentsStore = create<StudentsState>((set) => ({
   students: [],
   loading: false,
@@ -45,12 +60,12 @@ export const useStudentsStore = create<StudentsState>((set) => ({
     ]);
 
     // Latest log per student
-    const latestLogMap: Record<string, (typeof logs)[0]> = {};
+    const latestLogMap: Record<string, DailyLogRow> = {};
     (logs ?? []).forEach((log) => {
       if (!latestLogMap[log.user_id]) latestLogMap[log.user_id] = log;
     });
 
-    const auditMap: Record<string, (typeof audits)[0]> = {};
+    const auditMap: Record<string, AuditRow> = {};
     (audits ?? []).forEach((a) => { auditMap[a.user_id] = a; });
 
     const students: StudentSummary[] = (profiles ?? []).map((p) => ({

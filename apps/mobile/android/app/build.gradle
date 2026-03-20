@@ -1,6 +1,7 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -72,14 +73,38 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def envProps = new Properties()
+def envFile = rootProject.file("../.env")
+if (envFile.exists()) {
+    envFile.withInputStream { stream ->
+        envProps.load(stream)
+    }
+}
+
+def readSecret = { String propName, String envName = propName ->
+    def raw = project.findProperty(propName) ?: System.getenv(envName) ?: envProps.getProperty(propName)
+    return raw == null ? null : raw.toString().trim()
+}
+
+def storeFilePath = readSecret('MENTORSIR_UPLOAD_STORE_FILE', 'MENTORSIR_UPLOAD_STORE_FILE') ?: '../../mentorsir-release.keystore'
+def releaseStorePassword = readSecret('MENTORSIR_UPLOAD_STORE_PASSWORD', 'MENTORSIR_UPLOAD_STORE_PASSWORD') ?: readSecret('PASSWORD', 'PASSWORD')
+def releaseKeyAlias = readSecret('MENTORSIR_UPLOAD_KEY_ALIAS', 'MENTORSIR_UPLOAD_KEY_ALIAS') ?: 'mentorsir'
+def releaseKeyPassword = readSecret('MENTORSIR_UPLOAD_KEY_PASSWORD', 'MENTORSIR_UPLOAD_KEY_PASSWORD') ?: releaseStorePassword
+def hasReleaseSigning =
+    storeFilePath &&
+    releaseStorePassword &&
+    releaseKeyAlias &&
+    releaseKeyPassword &&
+    file(storeFilePath).exists()
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.mobile"
+    namespace "com.mentorsir"
     defaultConfig {
-        applicationId "com.mobile"
+        applicationId "com.mentorsir"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -92,15 +117,23 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // Use either Gradle properties or environment variables for secrets.
+            storeFile file(storeFilePath)
+            storePassword releaseStorePassword
+            keyAlias releaseKeyAlias
+            keyPassword releaseKeyPassword
+        }
     }
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            // Prefer custom key for debug when available, otherwise fall back.
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }

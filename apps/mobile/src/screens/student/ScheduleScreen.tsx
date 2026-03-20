@@ -16,6 +16,13 @@ const TYPE_ACCENT: Record<ScheduleEntry['entryType'], string> = {
   'mentor-connect': colors.success,
 };
 
+const TYPE_BG: Record<ScheduleEntry['entryType'], string> = {
+  study: colors.accentSubtle,
+  'ca-test': colors.warningSubtle,
+  'sectional-test': colors.dangerSubtle,
+  'mentor-connect': colors.successSubtle,
+};
+
 const TYPE_SHORT: Record<ScheduleEntry['entryType'], string> = {
   study: 'Study',
   'ca-test': 'CA Test',
@@ -79,7 +86,12 @@ export default function ScheduleScreen() {
               <Text style={[s.dayNum, active && s.dayNumActive]}>
                 {d.getDate()}
               </Text>
-              <View style={[s.hasEntriesDot, hasEntries && (active ? s.hasEntriesDotActive : s.hasEntriesDotInactive)]} />
+              <View style={[
+                s.hasEntriesDot,
+                hasEntries
+                  ? active ? s.hasEntriesDotActive : s.hasEntriesDotInactive
+                  : undefined,
+              ]} />
             </TouchableOpacity>
           );
         })}
@@ -90,9 +102,11 @@ export default function ScheduleScreen() {
         <Text style={s.dateSummaryText}>
           {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
         </Text>
-        <Text style={s.dateSummaryCount}>
-          {dayEntries.length} {dayEntries.length === 1 ? 'item' : 'items'}
-        </Text>
+        <View style={s.countBadge}>
+          <Text style={s.countBadgeText}>
+            {dayEntries.length} {dayEntries.length === 1 ? 'item' : 'items'}
+          </Text>
+        </View>
       </View>
 
       {/* Entries */}
@@ -102,15 +116,14 @@ export default function ScheduleScreen() {
       >
         {dayEntries.length === 0 ? (
           <View style={s.empty}>
-            <Text style={s.emptyText}>Rest day</Text>
+            <Text style={s.emptyTitle}>Rest day</Text>
             <Text style={s.emptyHint}>Nothing scheduled for today.</Text>
           </View>
         ) : (
-          dayEntries.map((entry, idx) => (
+          dayEntries.map((entry) => (
             <EntryRow
               key={entry.id}
               entry={entry}
-              last={idx === dayEntries.length - 1}
               onToggle={() => toggleCompleted(entry.id)}
               onRevision={(rev) => toggleRevision(entry.id, rev)}
             />
@@ -122,35 +135,40 @@ export default function ScheduleScreen() {
 }
 
 function EntryRow({
-  entry, last, onToggle, onRevision,
+  entry, onToggle, onRevision,
 }: {
   entry: ScheduleEntry;
-  last: boolean;
   onToggle: () => void;
   onRevision: (rev: 1 | 2 | 3) => void;
 }) {
   const accent = TYPE_ACCENT[entry.entryType];
+  const typeBg = entry.completed ? colors.successSubtle : TYPE_BG[entry.entryType];
+
   return (
-    <View style={[row.wrap, !last && row.bordered]}>
-      {/* Left accent bar */}
+    <View style={[row.wrap, { backgroundColor: typeBg }]}>
+      {/* Thick left accent bar */}
       <View style={[row.accentBar, { backgroundColor: accent }]} />
 
       <View style={row.body}>
         <View style={row.top}>
           <View style={row.info}>
-            <Text style={row.typeLabel}>{TYPE_SHORT[entry.entryType]}</Text>
+            <Text style={[row.typeLabel, { color: accent }]}>{TYPE_SHORT[entry.entryType]}</Text>
             <Text style={row.subject}>{entry.subject}</Text>
             {entry.syllabus ? <Text style={row.syllabus}>{entry.syllabus}</Text> : null}
             {entry.primarySource ? <Text style={row.source}>{entry.primarySource}</Text> : null}
           </View>
 
           {/* Completion check */}
-          <TouchableOpacity style={[row.check, entry.completed && row.checkDone]} onPress={onToggle}>
+          <TouchableOpacity
+            style={[row.check, entry.completed && row.checkDone]}
+            onPress={onToggle}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             {entry.completed && <Text style={row.checkMark}>✓</Text>}
           </TouchableOpacity>
         </View>
 
-        {/* Revision pills */}
+        {/* Revision pills — fully rounded */}
         <View style={row.revRow}>
           {([1, 2, 3] as const).map((rev) => {
             const done = entry[`revision${rev}`];
@@ -176,12 +194,12 @@ const s = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', color: colors.text, letterSpacing: -0.8 },
 
   weekStrip: { flexGrow: 0 },
-  weekContent: { paddingHorizontal: 20, paddingBottom: 4, gap: 6 },
+  weekContent: { paddingHorizontal: 16, paddingBottom: 4, gap: 4 },
   dayTile: {
     width: 52,
     paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: 12,
     gap: 4,
   },
   dayTileActive: {
@@ -193,7 +211,7 @@ const s = StyleSheet.create({
     color: colors.textMuted,
     letterSpacing: 0.5,
   },
-  dayNameActive: { color: 'rgba(255,255,255,0.6)' },
+  dayNameActive: { color: 'rgba(255,255,255,0.55)' },
   dayNum: {
     fontSize: 20,
     fontWeight: '800',
@@ -209,40 +227,49 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     marginTop: 8,
   },
-  dateSummaryText: { fontSize: 14, color: colors.text, fontWeight: '500' },
-  dateSummaryCount: { fontSize: 13, color: colors.textMuted },
+  dateSummaryText: { fontSize: 14, color: colors.text, fontWeight: '600' },
+  countBadge: {
+    backgroundColor: colors.accentLight,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  countBadgeText: { fontSize: 12, color: colors.accent, fontWeight: '700' },
 
-  list: { paddingBottom: 48 },
+  list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 48, gap: 10 },
   empty: { paddingTop: 72, alignItems: 'center', gap: 6 },
-  emptyText: { fontSize: 18, fontWeight: '700', color: colors.text },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
   emptyHint: { fontSize: 14, color: colors.textMuted },
 });
 
 const row = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    marginHorizontal: 24,
-    marginTop: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  bordered: {},
   accentBar: {
-    width: 3,
-    borderTopLeftRadius: 10,
-    borderBottomLeftRadius: 10,
+    width: 5,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
   },
   body: {
     flex: 1,
-    padding: 16,
-    gap: 12,
+    padding: 14,
+    gap: 10,
   },
   top: {
     flexDirection: 'row',
@@ -253,7 +280,6 @@ const row = StyleSheet.create({
   typeLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginBottom: 2,
@@ -275,14 +301,15 @@ const row = StyleSheet.create({
     marginTop: 2,
   },
   check: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 12,
+    backgroundColor: colors.surface,
   },
   checkDone: {
     backgroundColor: colors.success,
@@ -295,15 +322,16 @@ const row = StyleSheet.create({
   },
   revRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 7,
     alignItems: 'center',
   },
   revPill: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 100,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
   },
   revPillDone: {
     backgroundColor: colors.accentLight,

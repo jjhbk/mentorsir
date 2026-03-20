@@ -328,3 +328,10 @@ Content
 ---
 
 *This document is the single source of truth for the MentorSir platform architecture. All product, design, and engineering decisions should reference this overview.*
+
+
+cd /home/jjhbk/mentorsir/apps/mobile/android
+rm -rf build/generated/autolinking
+./gradlew :app:generateAutolinkingPackageList --rerun-tasks
+./gradlew :app:generateReactNativeEntryPoint --rerun-tasks
+./gradlew :app:compileReleaseJavaWithJavac

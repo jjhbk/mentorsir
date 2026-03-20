@@ -2,9 +2,8 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-// Replace these with your actual Supabase project values
-const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'YOUR_PUBLISHABLE_KEY';
+const SUPABASE_URL = 'https://rnnkvrodkzpmmwlvarei.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_wPlFZxJIHsnv_9GiDh6-JQ_SgsTSLwD';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {

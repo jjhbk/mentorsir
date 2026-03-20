@@ -4,9 +4,13 @@ import { supabase } from '../lib/supabase';
 
 interface Profile {
   id: string;
-  role: 'student' | 'mentor';
+  role: 'student' | 'mentor' | 'admin';
   name: string | null;
   mobile: string | null;
+  mentorId: string | null;
+  telegramId: string | null;
+  telegramGroupLink: string | null;
+  whatsappGroupLink: string | null;
 }
 
 interface AuthState {
@@ -21,10 +25,21 @@ interface AuthState {
 async function loadProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, role, name, mobile')
+    .select('id, role, name, mobile, mentor_id, telegram_id, telegram_group_link, whatsapp_group_link')
     .eq('id', userId)
-    .single<Profile>();
-  return data;
+    .single();
+
+  if (!data) return null;
+  return {
+    id: data.id,
+    role: data.role,
+    name: data.name,
+    mobile: data.mobile,
+    mentorId: data.mentor_id,
+    telegramId: data.telegram_id,
+    telegramGroupLink: data.telegram_group_link,
+    whatsappGroupLink: data.whatsapp_group_link,
+  };
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -35,7 +50,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialize: async () => {
     set({ loading: true });
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (session?.user) {
       const profile = await loadProfile(session.user.id);
       set({ user: session.user, profile, loading: false });

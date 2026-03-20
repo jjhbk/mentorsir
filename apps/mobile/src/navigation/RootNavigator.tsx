@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import AuthScreen from '../screens/auth/AuthScreen';
 import StudentNavigator from './StudentNavigator';
 import MentorNavigator from './MentorNavigator';
+import AdminNavigator from './AdminNavigator';
 import { colors } from '../theme/colors';
 import { RootStackParamList } from '../types';
 
@@ -21,7 +22,7 @@ export default function RootNavigator() {
   if (loading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.darkBg }}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={colors.accent} />
       </View>
     );
   }
@@ -31,6 +32,8 @@ export default function RootNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
           <Stack.Screen name="RoleSelect" component={AuthScreen} />
+        ) : profile?.role === 'admin' ? (
+          <Stack.Screen name="AdminTabs" component={AdminNavigator} />
         ) : profile?.role === 'mentor' ? (
           <Stack.Screen name="MentorTabs" component={MentorNavigator} />
         ) : (

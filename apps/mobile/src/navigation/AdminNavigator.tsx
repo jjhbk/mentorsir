@@ -1,48 +1,17 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Feather';
-import MentorDashboardScreen from '../screens/mentor/MentorDashboardScreen';
-import AlertsScreen from '../screens/mentor/AlertsScreen';
+import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import StudentsListScreen from '../screens/mentor/StudentsListScreen';
 import StudentDetailScreen from '../screens/mentor/StudentDetailScreen';
-import MentorToolsScreen from '../screens/mentor/MentorToolsScreen';
-import ConnectScreen from '../screens/shared/ConnectScreen';
 import { colors } from '../theme/colors';
-import {
-  MentorTabParamList,
-  MentorStudentsStackParamList,
-  MentorDashboardStackParamList,
-} from '../types';
+import { AdminTabParamList, MentorStudentsStackParamList } from '../types';
 
-const Tab = createBottomTabNavigator<MentorTabParamList>();
+const Tab = createBottomTabNavigator<AdminTabParamList>();
 const StudentsStack = createNativeStackNavigator<MentorStudentsStackParamList>();
-const DashboardStack = createNativeStackNavigator<MentorDashboardStackParamList>();
 
-// Dashboard stack: Home + Alerts (accessible via bell icon)
-function DashboardNavigator() {
-  return (
-    <DashboardStack.Navigator screenOptions={{ headerShown: false }}>
-      <DashboardStack.Screen name="MentorHome" component={MentorDashboardScreen} />
-      <DashboardStack.Screen
-        name="Alerts"
-        component={AlertsScreen}
-        options={{
-          headerShown: true,
-          title: 'Alerts',
-          headerStyle: { backgroundColor: colors.bg },
-          headerShadowVisible: false,
-          headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: '800', fontSize: 18 },
-          headerBackTitle: 'Dashboard',
-        }}
-      />
-    </DashboardStack.Navigator>
-  );
-}
-
-// Students stack
 function StudentsNavigator() {
   return (
     <StudentsStack.Navigator>
@@ -62,14 +31,35 @@ function StudentsNavigator() {
   );
 }
 
-const TABS: { name: keyof MentorTabParamList; component: React.ComponentType<any>; icon: string }[] = [
-  { name: 'Dashboard', component: DashboardNavigator, icon: 'grid'           },
-  { name: 'Students',  component: StudentsNavigator,  icon: 'users'          },
-  { name: 'Tools',     component: MentorToolsScreen,  icon: 'tool'           },
-  { name: 'Connect',   component: ConnectScreen,      icon: 'message-circle' },
+// Stub screens for Mentors and Settings tabs
+function MentorsScreen() {
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name="users" size={40} color={colors.textFaint} />
+      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 16 }}>Mentors</Text>
+      <Text style={{ fontSize: 14, color: colors.textMuted, marginTop: 6 }}>Mentor management coming soon</Text>
+    </View>
+  );
+}
+
+function SettingsScreen() {
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name="settings" size={40} color={colors.textFaint} />
+      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 16 }}>Settings</Text>
+      <Text style={{ fontSize: 14, color: colors.textMuted, marginTop: 6 }}>Programme settings coming soon</Text>
+    </View>
+  );
+}
+
+const TABS: { name: keyof AdminTabParamList; component: React.ComponentType<any>; icon: string }[] = [
+  { name: 'Overview',  component: AdminDashboardScreen, icon: 'bar-chart-2' },
+  { name: 'Students',  component: StudentsNavigator,    icon: 'users'       },
+  { name: 'Mentors',   component: MentorsScreen,        icon: 'user-check'  },
+  { name: 'Settings',  component: SettingsScreen,       icon: 'settings'    },
 ];
 
-export default function MentorNavigator() {
+export default function AdminNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => {
@@ -118,7 +108,5 @@ const s = StyleSheet.create({
     height: 40,
     borderRadius: 10,
   },
-  tabItemActive: {
-    backgroundColor: colors.accentLight,
-  },
+  tabItemActive: { backgroundColor: colors.accentLight },
 });
