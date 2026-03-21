@@ -32,6 +32,10 @@ interface ConnectState {
   role: 'student' | 'mentor' | null;
   currentUserId: string | null;
   mentorId: string | null;
+  mentorTelegramId: string | null;
+  mentorWhatsappNumber: string | null;
+  telegramGroupLink: string | null;
+  whatsappGroupLink: string | null;
   peers: ChatPeer[];
   selectedPeerId: string | null;
   messages: ChatMessage[];
@@ -186,6 +190,10 @@ export const useConnectStore = create<ConnectState>((set, get) => ({
   role: null,
   currentUserId: null,
   mentorId: null,
+  mentorTelegramId: null,
+  mentorWhatsappNumber: null,
+  telegramGroupLink: null,
+  whatsappGroupLink: null,
   peers: [],
   selectedPeerId: null,
   messages: [],
@@ -227,14 +235,22 @@ export const useConnectStore = create<ConnectState>((set, get) => ({
     let peers: ChatPeer[] = [];
     let assignedStudents: { id: string; name: string | null }[] = [];
     const mentorId: string | null = me.role === 'mentor' ? user.id : me.mentor_id;
+    let mentorTelegramId: string | null = null;
+    let mentorWhatsappNumber: string | null = null;
+    let telegramGroupLink: string | null = null;
+    let whatsappGroupLink: string | null = null;
 
     if (me.role === 'student' && me.mentor_id) {
       const { data: mentor } = await supabase
         .from('profiles')
-        .select('id, name, mobile, telegram_id')
+        .select('id, name, mobile, telegram_id, telegram_group_link, whatsapp_group_link')
         .eq('id', me.mentor_id)
         .single();
       if (mentor) {
+        mentorTelegramId = mentor.telegram_id;
+        mentorWhatsappNumber = mentor.mobile;
+        telegramGroupLink = mentor.telegram_group_link;
+        whatsappGroupLink = mentor.whatsapp_group_link;
         peers = [
           {
             id: mentor.id,
@@ -248,6 +264,16 @@ export const useConnectStore = create<ConnectState>((set, get) => ({
     }
 
     if (me.role === 'mentor') {
+      const { data: meWithLinks } = await supabase
+        .from('profiles')
+        .select('telegram_id, mobile, telegram_group_link, whatsapp_group_link')
+        .eq('id', user.id)
+        .single();
+      mentorTelegramId = meWithLinks?.telegram_id ?? null;
+      mentorWhatsappNumber = meWithLinks?.mobile ?? null;
+      telegramGroupLink = meWithLinks?.telegram_group_link ?? null;
+      whatsappGroupLink = meWithLinks?.whatsapp_group_link ?? null;
+
       const { data: students } = await supabase
         .from('profiles')
         .select('id, name, mobile, telegram_id')
@@ -357,11 +383,12 @@ export const useConnectStore = create<ConnectState>((set, get) => ({
         }));
       })(),
       (async () => {
-        if (me.role !== 'mentor' || !targetStudentId) return {};
+        const ownerId = me.role === 'mentor' ? targetStudentId : user.id;
+        if (!ownerId) return {};
         const { data } = await supabase
           .from('resource_mapping_values')
           .select('*')
-          .eq('owner_id', targetStudentId);
+          .eq('owner_id', ownerId);
 
         return (data ?? []).reduce<Record<string, ResourceMappingValue>>((acc, row) => {
           acc[row.row_key] = {
@@ -383,6 +410,10 @@ export const useConnectStore = create<ConnectState>((set, get) => ({
       role: me.role,
       currentUserId: user.id,
       mentorId,
+      mentorTelegramId,
+      mentorWhatsappNumber,
+      telegramGroupLink,
+      whatsappGroupLink,
       peers,
       assignedStudents,
       targetStudentId,

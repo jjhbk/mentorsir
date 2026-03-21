@@ -5,6 +5,7 @@ import {
   Modal,
   PermissionsAndroid,
   Platform,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,7 +30,7 @@ import {
 } from '../../data/resourceMappingTemplate';
 import { StudySession } from '../../types';
 
-const PANELS = ['private', 'group', 'meetings', 'plan', 'mentor'] as const;
+const PANELS = ['private', 'group', 'plan', 'mentor'] as const;
 type Panel = (typeof PANELS)[number];
 const VOICE_NOTES_STORAGE_KEY = 'mentorsir:voice-notes:v1';
 
@@ -55,6 +56,10 @@ export default function ConnectScreen() {
   const {
     loading,
     role,
+    mentorTelegramId,
+    mentorWhatsappNumber,
+    telegramGroupLink,
+    whatsappGroupLink,
     peers,
     selectedPeerId,
     messages,
@@ -190,6 +195,7 @@ export default function ConnectScreen() {
     () => studySessions.find((s) => s.status === 'active' || s.status === 'paused') ?? null,
     [studySessions]
   );
+  const selectedPeer = useMemo(() => peers.find((p) => p.id === selectedPeerId) ?? null, [peers, selectedPeerId]);
 
   const activeSessionElapsedSeconds = useMemo(() => {
     if (!activeSession) return 0;
@@ -234,7 +240,7 @@ export default function ConnectScreen() {
     );
   }
 
-  const availablePanels = role === 'mentor' ? PANELS : PANELS.filter((p) => p !== 'mentor');
+  const availablePanels = role === 'mentor' ? PANELS : PANELS.filter((p) => p !== 'mentor' && p !== 'plan');
 
   const onPrivateSend = async () => {
     const result = await sendPrivateMessage(privateDraft);
@@ -434,6 +440,43 @@ export default function ConnectScreen() {
     ]);
   };
 
+  const openExternal = async (url: string, label: string) => {
+    try {
+      await Linking.openURL(url.trim());
+    } catch {
+      Alert.alert(`${label} unavailable`, 'Could not open this link.');
+    }
+  };
+
+  const normalizeHttpUrl = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed.replace(/^https?:\/\//i, '')}`;
+  };
+
+  const toTelegramUrl = (target: string | null | undefined): string | null => {
+    if (!target?.trim()) return null;
+    const raw = target.trim();
+    if (/^tg:\/\//i.test(raw)) return raw;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (/^(t\.me|telegram\.me)\//i.test(raw)) return normalizeHttpUrl(raw);
+    if (/https?:\/\/(t\.me|telegram\.me)\//i.test(raw)) return normalizeHttpUrl(raw);
+    if (raw.startsWith('+')) return `https://t.me/${raw}`;
+    return `https://t.me/${raw.replace(/^@/, '')}`;
+  };
+
+  const toWhatsappUrl = (target: string | null | undefined): string | null => {
+    if (!target?.trim()) return null;
+    const raw = target.trim();
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (/^(chat\.whatsapp\.com|wa\.me|whatsapp\.com)\//i.test(raw)) return normalizeHttpUrl(raw);
+    if (/https?:\/\/(chat\.whatsapp\.com|wa\.me|whatsapp\.com)\//i.test(raw)) return normalizeHttpUrl(raw);
+    const digitsOnly = raw.replace(/[^\d]/g, '');
+    const digits = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
+    if (!digits) return null;
+    return `https://wa.me/${digits}`;
+  };
+
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
@@ -510,7 +553,37 @@ export default function ConnectScreen() {
 
         {panel === 'private' ? (
           <View style={s.card}>
-            <Text style={s.cardTitle}>Private Chat</Text>
+            <Text style={s.cardTitle}>Mentor Chat</Text>
+            <View style={s.linkIconRow}>
+              <TouchableOpacity
+                style={s.linkIconBtn}
+                onPress={() => {
+                  const url = toTelegramUrl(selectedPeer?.telegramId ?? mentorTelegramId);
+                  if (!url) {
+                    Alert.alert('Telegram unavailable', 'Telegram contact is not available.');
+                    return;
+                  }
+                  openExternal(url, 'Telegram');
+                }}
+              >
+                <Icon name="send" size={14} color={colors.text} />
+                <Text style={s.linkIconText}>Telegram</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.linkIconBtn}
+                onPress={() => {
+                  const url = toWhatsappUrl(selectedPeer?.mobile ?? mentorWhatsappNumber);
+                  if (!url) {
+                    Alert.alert('WhatsApp unavailable', 'WhatsApp contact is not available.');
+                    return;
+                  }
+                  openExternal(url, 'WhatsApp');
+                }}
+              >
+                <Icon name="message-circle" size={14} color={colors.text} />
+                <Text style={s.linkIconText}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.peerRow}>
               {peers.map((peer) => (
@@ -554,7 +627,37 @@ export default function ConnectScreen() {
 
         {panel === 'group' ? (
           <View style={s.card}>
-            <Text style={s.cardTitle}>Group Chat</Text>
+            <Text style={s.cardTitle}>Buddy Chat</Text>
+            <View style={s.linkIconRow}>
+              <TouchableOpacity
+                style={s.linkIconBtn}
+                onPress={() => {
+                  const url = toTelegramUrl(telegramGroupLink ?? profile?.telegramGroupLink);
+                  if (!url) {
+                    Alert.alert('Telegram group unavailable', 'Telegram group link is not available.');
+                    return;
+                  }
+                  openExternal(url, 'Telegram Group');
+                }}
+              >
+                <Icon name="send" size={14} color={colors.text} />
+                <Text style={s.linkIconText}>Telegram Group</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.linkIconBtn}
+                onPress={() => {
+                  const url = toWhatsappUrl(whatsappGroupLink ?? profile?.whatsappGroupLink);
+                  if (!url) {
+                    Alert.alert('WhatsApp group unavailable', 'WhatsApp group link is not available.');
+                    return;
+                  }
+                  openExternal(url, 'WhatsApp Group');
+                }}
+              >
+                <Icon name="message-circle" size={14} color={colors.text} />
+                <Text style={s.linkIconText}>WhatsApp Group</Text>
+              </TouchableOpacity>
+            </View>
             <View style={s.messagesWrap}>
               {groupMessages.length === 0 ? (
                 <Text style={s.emptyText}>No group messages yet.</Text>
@@ -582,7 +685,7 @@ export default function ConnectScreen() {
           </View>
         ) : null}
 
-        {panel === 'meetings' ? (
+        {panel === 'private' ? (
           <View style={s.card}>
             <Text style={s.cardTitle}>Meetings</Text>
 
@@ -1136,7 +1239,6 @@ function PickerRow({
 function labelForPanel(panel: Panel): string {
   if (panel === 'private') return 'Private';
   if (panel === 'group') return 'Group';
-  if (panel === 'meetings') return 'Meetings';
   if (panel === 'plan') return 'Plan';
   return 'Mentor';
 }
@@ -1190,6 +1292,19 @@ const s = StyleSheet.create({
   panelTabActive: { backgroundColor: colors.text, borderColor: colors.text },
   panelTabText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
   panelTabTextActive: { color: colors.surface },
+  linkIconRow: { flexDirection: 'row', gap: 8, marginBottom: 8, flexWrap: 'wrap' },
+  linkIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: colors.surface,
+  },
+  linkIconText: { color: colors.text, fontSize: 12, fontWeight: '700' },
 
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: colors.text, marginBottom: 10 },

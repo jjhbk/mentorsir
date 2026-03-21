@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, SafeAreaView, Alert, TextInput, Modal,
@@ -6,11 +6,21 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 import { useLogsStore } from '../../store/useLogsStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useConnectStore } from '../../store/useConnectStore';
 import { colors } from '../../theme/colors';
-import { DailyLog } from '../../types';
+import { DailyLog, StudySession } from '../../types';
 import TimePicker from '../../components/TimePicker';
 
 const todayISO = new Date().toISOString().slice(0, 10);
+const STUDY_SUBJECTS: StudySession['subject'][] = ['polity', 'geography', 'economy', 'csat', 'prelims', 'mains', 'interview'];
+const FEELING_OPTIONS: Array<{ value: DailyLog['feelingToday']; label: string }> = [
+  { value: 'neutral', label: '🙂 Okay / Neutral' },
+  { value: 'good', label: '😊 Good / Positive' },
+  { value: 'motivated', label: '🔥 Motivated / Driven' },
+  { value: 'confused', label: '😕 Confused / Stuck' },
+  { value: 'stressed', label: '😓 Stressed / Overwhelmed' },
+  { value: 'tired', label: '😴 Tired / Low Energy' },
+];
 
 function greeting() {
   const h = new Date().getHours();
@@ -28,6 +38,7 @@ function formatDateLong(iso: string) {
 export default function TodayScreen() {
   const { profile, updateProfile, signOut } = useAuthStore();
   const { fetchLogs, getLog, upsertLog } = useLogsStore();
+  const { studySessions, totalStudySeconds, studySessionAction, refreshAll } = useConnectStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [timePicker, setTimePicker] = useState<{ field: 'sleepTime' | 'wakeTime' } | null>(null);
@@ -35,6 +46,10 @@ export default function TodayScreen() {
   const [profileName, setProfileName] = useState(profile?.name ?? '');
   const [profileMobile, setProfileMobile] = useState(profile?.mobile ?? '');
   const [profileTelegram, setProfileTelegram] = useState(profile?.telegramId ?? '');
+  const [showFeelingModal, setShowFeelingModal] = useState(false);
+  const [timerSubject, setTimerSubject] = useState<StudySession['subject']>('polity');
+  const [timerBusyAction, setTimerBusyAction] = useState<'start' | 'pause' | 'resume' | 'stop' | null>(null);
+  const [timerNowMs, setTimerNowMs] = useState(Date.now());
 
   const [form, setForm] = useState<Omit<DailyLog, 'date'>>({
     studyHours: 0,
@@ -44,8 +59,8 @@ export default function TodayScreen() {
     wakeTime: '',
     taskCompleted: 'no',
     afternoonNapMinutes: 0,
-    hadMentorDiscussion: false,
-    relaxationActivity: '',
+    taskList: '',
+    feelingToday: 'neutral',
   });
 
   useEffect(() => {
@@ -62,14 +77,51 @@ export default function TodayScreen() {
     setProfileTelegram(profile?.telegramId ?? '');
   }, [profile?.name, profile?.mobile, profile?.telegramId]);
 
+  useEffect(() => {
+    refreshAll();
+  }, [refreshAll]);
+
   const set = (key: keyof typeof form, val: unknown) =>
     setForm((f) => ({ ...f, [key]: val }));
+
+  const activeSession = useMemo(
+    () => studySessions.find((s) => s.status === 'active' || s.status === 'paused') ?? null,
+    [studySessions]
+  );
+
+  const activeSessionElapsedSeconds = useMemo(() => {
+    if (!activeSession) return 0;
+    const runningDelta =
+      activeSession.status === 'active' && activeSession.segmentStartedAt
+        ? Math.max(0, Math.floor((timerNowMs - new Date(activeSession.segmentStartedAt).getTime()) / 1000))
+        : 0;
+    return activeSession.accumulatedSeconds + runningDelta;
+  }, [activeSession, timerNowMs]);
+
+  useEffect(() => {
+    if (activeSession?.status !== 'active') return;
+    const interval = setInterval(() => setTimerNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [activeSession?.status]);
 
   const handleSave = async () => {
     setSaving(true);
     await upsertLog({ date: todayISO, ...form });
     setSaving(false);
     Alert.alert('Saved', 'Log updated.');
+  };
+
+  const onTimerAction = async (
+    action: 'start' | 'pause' | 'resume' | 'stop',
+    payload?: { subject?: StudySession['subject']; sessionId?: string }
+  ) => {
+    setTimerBusyAction(action);
+    const result = await studySessionAction(action, payload);
+    setTimerBusyAction(null);
+    if (!result.ok) {
+      Alert.alert('Timer action failed', result.error ?? 'Try again.');
+      return;
+    }
   };
 
   const onSaveProfile = async () => {
@@ -181,6 +233,38 @@ export default function TodayScreen() {
           </View>
         </Modal>
 
+        <Modal visible={showFeelingModal} animationType="fade" transparent onRequestClose={() => setShowFeelingModal(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.modalCard}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>How are you feeling today?</Text>
+                <TouchableOpacity onPress={() => setShowFeelingModal(false)} style={s.modalCloseBtn}>
+                  <Icon name="x" size={16} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              {FEELING_OPTIONS.map((option) => {
+                const active = form.feelingToday === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={s.feelingOptionRow}
+                    onPress={() => {
+                      set('feelingToday', option.value);
+                      setShowFeelingModal(false);
+                    }}
+                  >
+                    <View style={[s.radioOuter, active && s.radioOuterActive]}>
+                      {active ? <View style={s.radioInner} /> : null}
+                    </View>
+                    <Text style={s.feelingOptionText}>{option.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
+
         {/* Header */}
         <View style={s.header}>
           <View style={s.headerTopRow}>
@@ -196,6 +280,67 @@ export default function TodayScreen() {
             </TouchableOpacity>
           </View>
           <Text style={s.dateText}>{formatDateLong(todayISO)}</Text>
+        </View>
+
+        <View style={s.timerCard}>
+          <View style={s.timerTop}>
+            <Text style={s.cardLabel}>Study timer</Text>
+            <View
+              style={[
+                s.timerStatusPill,
+                activeSession?.status === 'active'
+                  ? s.timerStatusActive
+                  : activeSession?.status === 'paused'
+                    ? s.timerStatusPaused
+                    : s.timerStatusIdle,
+              ]}
+            >
+              <Text style={s.timerStatusText}>{activeSession ? activeSession.status.toUpperCase() : 'IDLE'}</Text>
+            </View>
+          </View>
+          <Text style={s.timerClock}>{formatDuration(activeSessionElapsedSeconds)}</Text>
+          <Text style={s.timerMeta}>Logged today: {(totalStudySeconds / 3600).toFixed(2)}h</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.timerSubjectRow}>
+            {STUDY_SUBJECTS.map((subject) => (
+              <TouchableOpacity
+                key={subject}
+                style={[s.timerSubjectChip, timerSubject === subject && s.timerSubjectChipActive]}
+                onPress={() => setTimerSubject(subject)}
+              >
+                <Text style={[s.timerSubjectText, timerSubject === subject && s.timerSubjectTextActive]}>{subject}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <View style={s.timerBtnRow}>
+            <TouchableOpacity
+              style={[s.timerPrimaryBtn, (timerBusyAction !== null || Boolean(activeSession)) && s.timerBtnDisabled]}
+              disabled={timerBusyAction !== null || Boolean(activeSession)}
+              onPress={() => onTimerAction('start', { subject: timerSubject })}
+            >
+              <Text style={s.timerPrimaryBtnText}>Start</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.timerGhostBtn, (timerBusyAction !== null || activeSession?.status !== 'active') && s.timerBtnDisabled]}
+              disabled={timerBusyAction !== null || activeSession?.status !== 'active'}
+              onPress={() => activeSession && onTimerAction('pause', { sessionId: activeSession.id })}
+            >
+              <Text style={s.timerGhostBtnText}>Pause</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.timerGhostBtn, (timerBusyAction !== null || activeSession?.status !== 'paused') && s.timerBtnDisabled]}
+              disabled={timerBusyAction !== null || activeSession?.status !== 'paused'}
+              onPress={() => activeSession && onTimerAction('resume', { sessionId: activeSession.id })}
+            >
+              <Text style={s.timerGhostBtnText}>Resume</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.timerDangerBtn, (timerBusyAction !== null || !activeSession) && s.timerBtnDisabled]}
+              disabled={timerBusyAction !== null || !activeSession}
+              onPress={() => activeSession && onTimerAction('stop', { sessionId: activeSession.id })}
+            >
+              <Text style={s.timerPrimaryBtnText}>Stop</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Hero numbers — study + sleep */}
@@ -277,12 +422,12 @@ export default function TodayScreen() {
           />
           <View style={s.divider} />
           <View style={s.compactRow}>
-            <Text style={s.compactLabel}>Relaxation</Text>
+            <Text style={s.compactLabel}>Task list</Text>
             <TextInput
               style={s.compactInput}
-              value={form.relaxationActivity}
-              onChangeText={(v) => set('relaxationActivity', v)}
-              placeholder="Walk, reading…"
+              value={form.taskList}
+              onChangeText={(v) => set('taskList', v)}
+              placeholder="Write today's task list"
               placeholderTextColor={colors.textFaint}
               textAlign="right"
             />
@@ -314,17 +459,11 @@ export default function TodayScreen() {
           </View>
         </View>
 
-        {/* Mentor connect */}
         <View style={s.card}>
-          <Text style={s.cardLabel}>Mentor connect</Text>
-          <TouchableOpacity
-            style={s.compactRow}
-            onPress={() => set('hadMentorDiscussion', !form.hadMentorDiscussion)}
-          >
-            <Text style={s.compactLabel}>1-on-1 discussion today</Text>
-            <View style={[s.toggle, form.hadMentorDiscussion && s.toggleOn]}>
-              <View style={[s.thumb, form.hadMentorDiscussion && s.thumbOn]} />
-            </View>
+          <Text style={s.cardLabel}>How are you feeling today?</Text>
+          <TouchableOpacity style={s.feelingPickerBtn} onPress={() => setShowFeelingModal(true)}>
+            <Text style={s.feelingPickerText}>{FEELING_OPTIONS.find((opt) => opt.value === form.feelingToday)?.label ?? 'Select feeling'}</Text>
+            <Icon name="chevron-down" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -344,6 +483,14 @@ export default function TodayScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function formatDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -470,6 +617,62 @@ const s = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.5,
   },
+  timerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    marginBottom: 12,
+  },
+  timerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  timerStatusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  timerStatusActive: { backgroundColor: colors.successLight },
+  timerStatusPaused: { backgroundColor: colors.accentLight },
+  timerStatusIdle: { backgroundColor: colors.surfaceAlt },
+  timerStatusText: { color: colors.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
+  timerClock: { color: colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -0.8, marginTop: 8 },
+  timerMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  timerSubjectRow: { gap: 8, marginTop: 10, paddingBottom: 4 },
+  timerSubjectChip: { paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 999 },
+  timerSubjectChipActive: { backgroundColor: colors.text, borderColor: colors.text },
+  timerSubjectText: { fontSize: 12, color: colors.textMuted, fontWeight: '700' },
+  timerSubjectTextActive: { color: colors.surface },
+  timerBtnRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 10 },
+  timerPrimaryBtn: { backgroundColor: colors.text, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+  timerPrimaryBtnText: { color: colors.surface, fontSize: 12, fontWeight: '700' },
+  timerGhostBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 10 },
+  timerGhostBtnText: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  timerDangerBtn: { backgroundColor: colors.danger, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+  timerBtnDisabled: { opacity: 0.55 },
+  feelingPickerBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.bg,
+    marginBottom: 10,
+  },
+  feelingPickerText: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 8 },
+  feelingOptionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
+  feelingOptionText: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  radioOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterActive: { borderColor: colors.accent },
+  radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: 18 },
   modalCard: {
     backgroundColor: colors.bg,
@@ -679,32 +882,6 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.textMuted,
-  },
-
-  // Toggle — green when on
-  toggle: {
-    width: 46,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.border,
-    padding: 3,
-  },
-  toggleOn: {
-    backgroundColor: colors.success,
-  },
-  thumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.surface,
-    shadowColor: 'rgba(0,0,0,0.18)',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  thumbOn: {
-    alignSelf: 'flex-end',
   },
 
   saveBtn: {

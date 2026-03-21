@@ -11,6 +11,13 @@ interface LogsState {
 }
 
 function rowToLog(row: Record<string, unknown>): DailyLog {
+  const feeling = (row.feeling_today as string | null) ?? 'neutral';
+  const normalizedFeeling: DailyLog['feelingToday'] =
+    feeling === 'neutral' || feeling === 'good' || feeling === 'motivated' || feeling === 'confused' || feeling === 'stressed' || feeling === 'tired'
+      ? feeling
+      : feeling === 'focused'
+        ? 'motivated'
+        : 'neutral';
   return {
     date: row.date as string,
     studyHours: Number(row.study_hours ?? 0),
@@ -20,8 +27,8 @@ function rowToLog(row: Record<string, unknown>): DailyLog {
     wakeTime: (row.wake_time as string) ?? '',
     taskCompleted: (row.task_completed as DailyLog['taskCompleted']) ?? 'no',
     afternoonNapMinutes: Number(row.afternoon_nap_minutes ?? 0),
-    hadMentorDiscussion: Boolean(row.had_mentor_discussion),
-    relaxationActivity: (row.relaxation_activity as string) ?? '',
+    taskList: (row.reason_not_studying as string) ?? '',
+    feelingToday: normalizedFeeling,
   };
 }
 
@@ -58,8 +65,8 @@ export const useLogsStore = create<LogsState>((set, get) => ({
       wake_time: log.wakeTime,
       task_completed: log.taskCompleted,
       afternoon_nap_minutes: log.afternoonNapMinutes,
-      had_mentor_discussion: log.hadMentorDiscussion,
-      relaxation_activity: log.relaxationActivity,
+      reason_not_studying: log.taskList,
+      feeling_today: log.feelingToday,
     };
 
     const { error } = await supabase.from('daily_logs').upsert(row, {

@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, SafeAreaView,
+  ActivityIndicator, SafeAreaView, TextInput, Alert,
 } from 'react-native';
 import { useScheduleStore } from '../../store/useScheduleStore';
+import { useConnectStore } from '../../store/useConnectStore';
 import { colors } from '../../theme/colors';
 import { ScheduleEntry } from '../../types';
+import { RESOURCE_MAPPING_TEMPLATE } from '../../data/resourceMappingTemplate';
 
 const todayISO = new Date().toISOString().slice(0, 10);
 
@@ -41,9 +43,18 @@ function buildWeek(from: string, count = 7) {
 
 export default function ScheduleScreen() {
   const { entries, loading, fetchEntries, toggleCompleted, toggleRevision } = useScheduleStore();
+  const { yearlyPlans, resourceMap, refreshAll, saveYearlyPlan } = useConnectStore();
   const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [planMonth, setPlanMonth] = useState('');
+  const [planSubject1, setPlanSubject1] = useState('');
+  const [planSubject2, setPlanSubject2] = useState('');
+  const [planSubject3, setPlanSubject3] = useState('');
+  const [planNotes, setPlanNotes] = useState('');
 
-  useEffect(() => { fetchEntries(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetchEntries();
+    refreshAll();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const weekDates = buildWeek(todayISO);
   const dayEntries = entries.filter((e) => e.date === selectedDate);
@@ -129,6 +140,59 @@ export default function ScheduleScreen() {
             />
           ))
         )}
+
+        <View style={s.sectionCard}>
+          <Text style={s.sectionTitle}>Yearly Plan</Text>
+          <TextInput style={s.input} placeholder="Month (JAN/FEB/MAR)" placeholderTextColor={colors.textFaint} value={planMonth} onChangeText={setPlanMonth} />
+          <TextInput style={s.input} placeholder="Subject 1" placeholderTextColor={colors.textFaint} value={planSubject1} onChangeText={setPlanSubject1} />
+          <TextInput style={s.input} placeholder="Subject 2" placeholderTextColor={colors.textFaint} value={planSubject2} onChangeText={setPlanSubject2} />
+          <TextInput style={s.input} placeholder="Subject 3" placeholderTextColor={colors.textFaint} value={planSubject3} onChangeText={setPlanSubject3} />
+          <TextInput style={s.input} placeholder="Notes" placeholderTextColor={colors.textFaint} value={planNotes} onChangeText={setPlanNotes} />
+          <TouchableOpacity
+            style={s.primaryBtn}
+            onPress={async () => {
+              const result = await saveYearlyPlan(planMonth, planSubject1, planSubject2, planSubject3, planNotes);
+              if (!result.ok) {
+                Alert.alert('Unable to save plan', result.error ?? 'Try again.');
+                return;
+              }
+              setPlanMonth('');
+              setPlanSubject1('');
+              setPlanSubject2('');
+              setPlanSubject3('');
+              setPlanNotes('');
+            }}
+          >
+            <Text style={s.primaryBtnText}>Save Plan</Text>
+          </TouchableOpacity>
+          {yearlyPlans.length === 0 ? (
+            <Text style={s.sectionEmpty}>No yearly plan entries yet.</Text>
+          ) : (
+            yearlyPlans.map((plan) => (
+              <View key={plan.id} style={s.sectionRow}>
+                <Text style={s.sectionMonth}>{plan.month}</Text>
+                <Text style={s.sectionMeta}>
+                  {[plan.subject1, plan.subject2, plan.subject3].filter(Boolean).join(' · ') || 'No subjects'}
+                </Text>
+                {plan.notes ? <Text style={s.sectionMeta}>{plan.notes}</Text> : null}
+              </View>
+            ))
+          )}
+        </View>
+
+        <View style={s.sectionCard}>
+          <Text style={s.sectionTitle}>Resource Mapping</Text>
+          {RESOURCE_MAPPING_TEMPLATE.map((row) => {
+            const mapped = resourceMap[row.rowKey];
+            return (
+              <View key={row.rowKey} style={s.sectionRow}>
+                <Text style={s.sectionMonth}>{row.subject}</Text>
+                <Text style={s.sectionMeta}>{row.paper} • {row.part}</Text>
+                <Text style={s.sectionMeta}>Resource: {mapped?.resource || '—'}</Text>
+              </View>
+            );
+          })}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -246,6 +310,32 @@ const s = StyleSheet.create({
   empty: { paddingTop: 72, alignItems: 'center', gap: 6 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
   emptyHint: { fontSize: 14, color: colors.textMuted },
+  sectionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginTop: 10,
+  },
+  sectionTitle: { color: colors.text, fontSize: 14, fontWeight: '800', marginBottom: 8 },
+  sectionEmpty: { color: colors.textMuted, fontSize: 13 },
+  sectionRow: { borderTopWidth: 1, borderTopColor: colors.divider, paddingVertical: 8 },
+  sectionMonth: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  sectionMeta: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 8,
+    backgroundColor: colors.surface,
+  },
+  primaryBtn: { backgroundColor: colors.text, borderRadius: 10, alignItems: 'center', paddingVertical: 11, marginBottom: 8 },
+  primaryBtnText: { color: colors.surface, fontSize: 12, fontWeight: '700' },
 });
 
 const row = StyleSheet.create({

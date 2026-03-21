@@ -2,6 +2,7 @@ const footerLinks = [
   ["YouTube", "https://www.youtube.com/@mentorsir.official"],
   ["Telegram", "https://t.me/mentorsir"],
   ["Instagram", "https://www.instagram.com/mentorsir.official"],
+  ["Privacy Policy", "/privacy-policy"],
   ["FAQ", "#faq"],
 ] as const;
 

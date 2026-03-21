@@ -395,7 +395,7 @@ export default function MentorChatModal({
               {isMentor ? "Student Chats" : "Talk to Mentor"}
             </p>
             <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-text">
-              {activeMode === "private" ? "Private Chat" : "Mentor Group Chat"}
+              {activeMode === "private" ? "1:1 Chat" : "Mentor Group Chat"}
             </h2>
             <p className="mt-1 text-sm text-text-muted">
               {activeMode === "private"
@@ -424,7 +424,7 @@ export default function MentorChatModal({
                 : "border-border bg-white text-text"
             }`}
           >
-            Private Chat
+            1:1 Chat
           </button>
           <button
             type="button"
@@ -435,7 +435,7 @@ export default function MentorChatModal({
                 : "border-border bg-white text-text"
             }`}
           >
-            Group Chat
+            Buddy Chat
           </button>
         </div>
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   SafeAreaView, Alert,
@@ -12,6 +12,7 @@ export default function MeScreen() {
   const { profile, signOut } = useAuthStore();
   const { logs } = useLogsStore();
   const { tests } = useTestsStore();
+  const [trackingRange, setTrackingRange] = React.useState<'weekly' | 'monthly' | 'all'>('weekly');
 
   const last30 = Object.values(logs).slice(0, 30);
   const avgStudy = last30.length
@@ -24,6 +25,47 @@ export default function MeScreen() {
   const avgScore = tests.length
     ? Math.round(tests.reduce((a, t) => a + (t.score / t.totalQuestions) * 100, 0) / tests.length)
     : null;
+  const sortedLogRows = useMemo(
+    () => Object.values(logs).slice().sort((a, b) => a.date.localeCompare(b.date)),
+    [logs]
+  );
+  const sleepSeriesAll = useMemo(
+    () =>
+      sortedLogRows.map((row) => ({
+        label: new Date(row.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        value: row.sleepHours,
+      })),
+    [sortedLogRows]
+  );
+  const studySeriesAll = useMemo(
+    () =>
+      sortedLogRows.map((row) => ({
+        label: new Date(row.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        value: row.studyHours,
+      })),
+    [sortedLogRows]
+  );
+  const rangeCount = trackingRange === 'weekly' ? 7 : trackingRange === 'monthly' ? 30 : Number.MAX_SAFE_INTEGER;
+  const sleepSeries = useMemo(
+    () => (rangeCount === Number.MAX_SAFE_INTEGER ? sleepSeriesAll : sleepSeriesAll.slice(-rangeCount)),
+    [sleepSeriesAll, rangeCount]
+  );
+  const studySeries = useMemo(
+    () => (rangeCount === Number.MAX_SAFE_INTEGER ? studySeriesAll : studySeriesAll.slice(-rangeCount)),
+    [studySeriesAll, rangeCount]
+  );
+  const testSeries = useMemo(
+    () =>
+      tests
+        .slice()
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(-10)
+        .map((t, idx) => ({
+          label: String(idx + 1),
+          value: t.totalQuestions > 0 ? Math.round((t.score / t.totalQuestions) * 100) : 0,
+        })),
+    [tests]
+  );
 
   const initial = (profile?.name?.[0] ?? 'S').toUpperCase();
 
@@ -67,6 +109,26 @@ export default function MeScreen() {
               highlight={avgScore !== null && avgScore >= 75}
             />
           </View>
+          <Text style={s.avgScoreHelp}>
+            Avg score = average percentage across all tests ({tests.length} test{tests.length === 1 ? '' : 's'}).
+          </Text>
+        </View>
+
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>Sleep Tracking</Text>
+          <RangeToggle value={trackingRange} onChange={setTrackingRange} />
+          <TimelineLineChart data={sleepSeries} color={colors.accent} suffix="h" emptyText="No sleep logs yet." />
+        </View>
+
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>Study Tracking</Text>
+          <RangeToggle value={trackingRange} onChange={setTrackingRange} />
+          <TimelineLineChart data={studySeries} color={colors.success} suffix="h" emptyText="No study logs yet." />
+        </View>
+
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>Previous Test Records</Text>
+          <MiniBarChart data={testSeries} color={colors.warning} suffix="%" emptyText="No tests recorded yet." />
         </View>
 
         {/* Profile info */}
@@ -77,7 +139,7 @@ export default function MeScreen() {
             <View style={s.rowDivider} />
             <InfoRow label="Mobile" value={profile?.mobile ?? '—'} />
             <View style={s.rowDivider} />
-            <InfoRow label="Program" value="PTP 2.0 — Prelims Training" last />
+            <InfoRow label="Program" value="PTP 2.0 — Prelims Training" />
           </View>
         </View>
 
@@ -87,7 +149,7 @@ export default function MeScreen() {
           <View style={s.infoCard}>
             <InfoRow label="Days logged" value={String(Object.keys(logs).length)} />
             <View style={s.rowDivider} />
-            <InfoRow label="Tests recorded" value={String(tests.length)} last />
+            <InfoRow label="Tests recorded" value={String(tests.length)} />
           </View>
         </View>
 
@@ -130,11 +192,162 @@ function StatCell({ value, unit, label, highlight }: {
   );
 }
 
-function InfoRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={info.row}>
       <Text style={info.label}>{label}</Text>
       <Text style={info.value} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
+function MiniBarChart({
+  data,
+  color,
+  suffix,
+  emptyText,
+}: {
+  data: Array<{ label: string; value: number }>;
+  color: string;
+  suffix: string;
+  emptyText: string;
+}) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  if (data.length === 0) {
+    return (
+      <View style={chart.emptyWrap}>
+        <Text style={chart.emptyText}>{emptyText}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={chart.card}>
+      <View style={chart.barsRow}>
+        {data.map((d) => (
+          <View key={`${d.label}-${d.value}`} style={chart.barCol}>
+            <Text style={chart.valText}>{d.value.toFixed(1)}{suffix}</Text>
+            <View style={chart.track}>
+              <View style={[chart.fill, { backgroundColor: color, height: `${Math.max(8, (d.value / max) * 100)}%` }]} />
+            </View>
+            <Text style={chart.labelText}>{d.label}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function TimelineLineChart({
+  data,
+  color,
+  suffix,
+  emptyText,
+}: {
+  data: Array<{ label: string; value: number }>;
+  color: string;
+  suffix: string;
+  emptyText: string;
+}) {
+  if (data.length === 0) {
+    return (
+      <View style={chart.emptyWrap}>
+        <Text style={chart.emptyText}>{emptyText}</Text>
+      </View>
+    );
+  }
+
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const chartHeight = 112;
+  const pointGap = 26;
+  const xPad = 10;
+  const chartWidth = Math.max(300, xPad * 2 + pointGap * Math.max(0, data.length - 1));
+  const labelEvery = data.length > 30 ? 4 : data.length > 15 ? 2 : 1;
+
+  return (
+    <View style={chart.card}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View>
+          <View style={[chart.lineCanvas, { width: chartWidth, height: chartHeight }]}>
+            {data.map((d, i) => {
+              const x = xPad + i * pointGap;
+              const y = chartHeight - (d.value / max) * (chartHeight - 10) - 4;
+              return (
+                <View key={`pt-${i}`} style={[chart.point, { left: x - 4, top: y - 4, backgroundColor: color }]} />
+              );
+            })}
+            {data.slice(1).map((d, i) => {
+              const prev = data[i];
+              const x1 = xPad + i * pointGap;
+              const y1 = chartHeight - (prev.value / max) * (chartHeight - 10) - 4;
+              const x2 = xPad + (i + 1) * pointGap;
+              const y2 = chartHeight - (d.value / max) * (chartHeight - 10) - 4;
+              return (
+                <React.Fragment key={`seg-${i}`}>
+                  <View
+                    style={[
+                      chart.segmentH,
+                      {
+                        left: x1,
+                        top: y1,
+                        width: x2 - x1,
+                        backgroundColor: color,
+                      },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      chart.segmentV,
+                      {
+                        left: x2 - 1,
+                        top: Math.min(y1, y2),
+                        height: Math.max(2, Math.abs(y2 - y1)),
+                        backgroundColor: color,
+                      },
+                    ]}
+                  />
+                </React.Fragment>
+              );
+            })}
+          </View>
+          <View style={[chart.labelsRow, { width: chartWidth }]}>
+            {data.map((d, i) => (
+              <View key={`lb-${i}`} style={[chart.labelCell, { width: pointGap }]}>
+                <Text style={chart.labelText}>{i % labelEvery === 0 ? d.label : ''}</Text>
+                <Text style={chart.valText}>{i % labelEvery === 0 ? `${d.value.toFixed(1)}${suffix}` : ''}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function RangeToggle({
+  value,
+  onChange,
+}: {
+  value: 'weekly' | 'monthly' | 'all';
+  onChange: (next: 'weekly' | 'monthly' | 'all') => void;
+}) {
+  const options: Array<{ value: 'weekly' | 'monthly' | 'all'; label: string }> = [
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'all', label: 'All Time' },
+  ];
+
+  return (
+    <View style={s.rangeToggleRow}>
+      {options.map((opt) => (
+        <TouchableOpacity
+          key={opt.value}
+          style={[s.rangeToggleBtn, value === opt.value && s.rangeToggleBtnActive]}
+          onPress={() => onChange(opt.value)}
+        >
+          <Text style={[s.rangeToggleText, value === opt.value && s.rangeToggleTextActive]}>{opt.label}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
@@ -185,6 +398,18 @@ const s = StyleSheet.create({
     fontSize: 10, fontWeight: '700', color: colors.textFaint,
     textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12,
   },
+  rangeToggleRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  rangeToggleBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+  },
+  rangeToggleBtnActive: { backgroundColor: colors.accentLight, borderColor: colors.accent },
+  rangeToggleText: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  rangeToggleTextActive: { color: colors.accent },
 
   statsGrid: {
     flexDirection: 'row',
@@ -216,6 +441,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.dangerSubtle,
   },
   signOutText: { fontSize: 14, color: colors.danger, fontWeight: '700' },
+  avgScoreHelp: { marginTop: 10, color: colors.textMuted, fontSize: 12 },
 });
 
 const stat = StyleSheet.create({
@@ -260,4 +486,61 @@ const info = StyleSheet.create({
   },
   label: { fontSize: 15, color: colors.textMuted },
   value: { fontSize: 15, color: colors.text, fontWeight: '600', textAlign: 'right', flex: 1, marginLeft: 16 },
+});
+
+const chart = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+  },
+  barsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  barCol: { flex: 1, alignItems: 'center' },
+  valText: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
+  lineCanvas: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    position: 'relative',
+  },
+  segmentH: {
+    position: 'absolute',
+    height: 2,
+    borderRadius: 2,
+  },
+  segmentV: {
+    position: 'absolute',
+    width: 2,
+    borderRadius: 2,
+  },
+  point: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  labelsRow: { flexDirection: 'row', marginTop: 8, marginLeft: 2 },
+  labelCell: { alignItems: 'center' },
+  track: {
+    width: '100%',
+    height: 86,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceAlt,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  fill: { width: '100%', borderRadius: 6 },
+  labelText: { marginTop: 4, fontSize: 10, color: colors.textFaint },
+  emptyWrap: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    alignItems: 'center',
+  },
+  emptyText: { color: colors.textMuted, fontSize: 13 },
 });

@@ -20,9 +20,11 @@ interface Props {
 function parseTime(val: string): { h: string; m: string; ampm: 'AM' | 'PM' } {
   const match = val.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/i);
   if (match) {
+    const parsedMinute = parseInt(match[2], 10);
+    const normalizedMinute = Math.max(0, Math.min(55, Math.round(parsedMinute / 5) * 5));
     return {
       h: String(parseInt(match[1], 10)).padStart(2, '0'),
-      m: String(Math.round(parseInt(match[2], 10) / 5) * 5).padStart(2, '0'),
+      m: String(normalizedMinute).padStart(2, '0'),
       ampm: match[3].toUpperCase() as 'AM' | 'PM',
     };
   }
@@ -60,8 +62,9 @@ export default function TimePicker({ visible, value, label = 'Select time', onCo
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={onCancel}>
-        <TouchableOpacity activeOpacity={1} style={s.sheet}>
+      <View style={s.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onCancel} />
+        <View style={s.sheet}>
           <SafeAreaView>
             {/* Header */}
             <View style={s.header}>
@@ -144,8 +147,8 @@ export default function TimePicker({ visible, value, label = 'Select time', onCo
               </View>
             </View>
           </SafeAreaView>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -198,7 +201,9 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: ITEM_H,
-    backgroundColor: colors.accentLight,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.accentLight,
     borderRadius: 8,
     zIndex: 1,
   },
@@ -212,7 +217,7 @@ const s = StyleSheet.create({
   wheelText: {
     fontSize: 24,
     fontWeight: '500',
-    color: colors.textFaint,
+    color: colors.textMuted,
   },
   wheelTextActive: {
     color: colors.accent,

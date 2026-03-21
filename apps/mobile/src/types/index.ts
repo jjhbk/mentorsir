@@ -11,8 +11,8 @@ export interface DailyLog {
   wakeTime: string;
   taskCompleted: TaskCompletion;
   afternoonNapMinutes: number;
-  hadMentorDiscussion: boolean;
-  relaxationActivity: string;
+  taskList: string;
+  feelingToday: 'neutral' | 'good' | 'motivated' | 'confused' | 'stressed' | 'tired';
 }
 
 export interface ScheduleEntry {
