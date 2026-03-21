@@ -123,15 +123,19 @@ async function hydrateNames(meetings: MeetingEntry[]): Promise<MeetingEntry[]> {
 }
 
 async function fetchSessions(userId: string): Promise<{ sessions: StudySession[]; totalStudySeconds: number }> {
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const windowStart = new Date(now);
+  windowStart.setDate(windowStart.getDate() - 13);
+  const fromIso = windowStart.toISOString().slice(0, 10);
   const { data } = await supabase
     .from('study_sessions')
     .select('*')
     .eq('user_id', userId)
-    .gte('started_at', today + 'T00:00:00.000Z')
+    .gte('started_at', fromIso + 'T00:00:00.000Z')
     .lt('started_at', today + 'T23:59:59.999Z')
     .order('started_at', { ascending: false })
-    .limit(100);
+    .limit(500);
 
   const sessions = (data ?? []).map((row) => ({
     id: row.id,
@@ -144,10 +148,37 @@ async function fetchSessions(userId: string): Promise<{ sessions: StudySession[]
   })) as StudySession[];
 
   const totalStudySeconds = sessions
-    .filter((s) => s.status === 'completed')
+    .filter((s) => s.status === 'completed' && s.startedAt.slice(0, 10) === today)
     .reduce((sum, s) => sum + s.accumulatedSeconds, 0);
 
   return { sessions, totalStudySeconds };
+}
+
+async function appendStudyHoursToDailyLog(userId: string, additionalSeconds: number): Promise<void> {
+  if (additionalSeconds <= 0) return;
+
+  const date = new Date().toISOString().slice(0, 10);
+  const additionalHours = Number((additionalSeconds / 3600).toFixed(1));
+  if (additionalHours <= 0) return;
+
+  const { data: existingRow } = await supabase
+    .from('daily_logs')
+    .select('study_hours')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .maybeSingle();
+
+  const currentStudyHours = Number(existingRow?.study_hours ?? 0);
+  const nextStudyHours = Number((currentStudyHours + additionalHours).toFixed(1));
+
+  await supabase.from('daily_logs').upsert(
+    {
+      user_id: userId,
+      date,
+      study_hours: nextStudyHours,
+    },
+    { onConflict: 'user_id,date' }
+  );
 }
 
 export const useConnectStore = create<ConnectState>((set, get) => ({
@@ -682,16 +713,19 @@ export const useConnectStore = create<ConnectState>((set, get) => ({
 
       if (action === 'stop') {
         if (session.status === 'completed') return { ok: false, error: 'Session already completed' };
+        const completedSeconds = session.accumulatedSeconds + (session.status === 'active' ? segmentDelta : 0);
         const { error } = await supabase
           .from('study_sessions')
           .update({
             status: 'completed',
             segment_started_at: null,
             ended_at: new Date().toISOString(),
-            accumulated_seconds: session.accumulatedSeconds + (session.status === 'active' ? segmentDelta : 0),
+            accumulated_seconds: completedSeconds,
           })
           .eq('id', session.id);
         if (error) return { ok: false, error: error.message };
+
+        await appendStudyHoursToDailyLog(currentUserId, completedSeconds);
       }
     }
 

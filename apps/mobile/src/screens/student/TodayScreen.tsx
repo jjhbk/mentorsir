@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, SafeAreaView, Alert,
+  ActivityIndicator, SafeAreaView, Alert, TextInput, Modal,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 import { useLogsStore } from '../../store/useLogsStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { colors } from '../../theme/colors';
@@ -25,11 +26,15 @@ function formatDateLong(iso: string) {
 }
 
 export default function TodayScreen() {
-  const { profile } = useAuthStore();
+  const { profile, updateProfile, signOut } = useAuthStore();
   const { fetchLogs, getLog, upsertLog } = useLogsStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [timePicker, setTimePicker] = useState<{ field: 'sleepTime' | 'wakeTime' } | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileName, setProfileName] = useState(profile?.name ?? '');
+  const [profileMobile, setProfileMobile] = useState(profile?.mobile ?? '');
+  const [profileTelegram, setProfileTelegram] = useState(profile?.telegramId ?? '');
 
   const [form, setForm] = useState<Omit<DailyLog, 'date'>>({
     studyHours: 0,
@@ -51,6 +56,12 @@ export default function TodayScreen() {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    setProfileName(profile?.name ?? '');
+    setProfileMobile(profile?.mobile ?? '');
+    setProfileTelegram(profile?.telegramId ?? '');
+  }, [profile?.name, profile?.mobile, profile?.telegramId]);
+
   const set = (key: keyof typeof form, val: unknown) =>
     setForm((f) => ({ ...f, [key]: val }));
 
@@ -59,6 +70,33 @@ export default function TodayScreen() {
     await upsertLog({ date: todayISO, ...form });
     setSaving(false);
     Alert.alert('Saved', 'Log updated.');
+  };
+
+  const onSaveProfile = async () => {
+    const result = await updateProfile({
+      name: profileName,
+      mobile: profileMobile,
+      telegramId: profileTelegram,
+    });
+    if (!result.ok) {
+      Alert.alert('Unable to save profile', result.error ?? 'Try again.');
+      return;
+    }
+    setShowProfileModal(false);
+  };
+
+  const onPressSignOut = () => {
+    Alert.alert('Sign out?', 'You will need to sign in again.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: async () => {
+          setShowProfileModal(false);
+          await signOut();
+        },
+      },
+    ]);
   };
 
   if (loading) {
@@ -100,9 +138,63 @@ export default function TodayScreen() {
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
+        <Modal visible={showProfileModal} animationType="slide" transparent onRequestClose={() => setShowProfileModal(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.modalCard}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Edit Profile</Text>
+                <TouchableOpacity onPress={() => setShowProfileModal(false)} style={s.modalCloseBtn}>
+                  <Icon name="x" size={16} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={s.modalInput}
+                placeholder="Name"
+                placeholderTextColor={colors.textFaint}
+                value={profileName}
+                onChangeText={setProfileName}
+              />
+              <TextInput
+                style={s.modalInput}
+                placeholder="Mobile number"
+                placeholderTextColor={colors.textFaint}
+                value={profileMobile}
+                onChangeText={setProfileMobile}
+                keyboardType="phone-pad"
+              />
+              <TextInput
+                style={s.modalInput}
+                placeholder="Telegram ID"
+                placeholderTextColor={colors.textFaint}
+                value={profileTelegram}
+                onChangeText={setProfileTelegram}
+              />
+
+              <TouchableOpacity style={s.modalPrimaryBtn} onPress={onSaveProfile}>
+                <Text style={s.modalPrimaryBtnText}>Save Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalSignOutBtn} onPress={onPressSignOut}>
+                <Text style={s.modalSignOutBtnText}>Sign out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.greetingText}>{greeting()}, {firstName}</Text>
+          <View style={s.headerTopRow}>
+            <TouchableOpacity onPress={() => setShowProfileModal(true)} activeOpacity={0.75}>
+              <Text style={s.greetingText}>{greeting()}, {firstName}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.profileIconBtn}
+              onPress={() => setShowProfileModal(true)}
+              accessibilityLabel="Open profile settings"
+            >
+              <Icon name="user" size={15} color={colors.text} />
+            </TouchableOpacity>
+          </View>
           <Text style={s.dateText}>{formatDateLong(todayISO)}</Text>
         </View>
 
@@ -355,12 +447,22 @@ const s = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 20,
   },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   greetingText: {
     fontSize: 13,
     fontWeight: '500',
     color: colors.textMuted,
     letterSpacing: 0.2,
-    marginBottom: 4,
+  },
+  profileIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
   },
   dateText: {
     fontSize: 22,
@@ -368,6 +470,54 @@ const s = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.5,
   },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: 18 },
+  modalCard: {
+    backgroundColor: colors.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  modalTitle: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  modalCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 8,
+    backgroundColor: colors.surface,
+  },
+  modalPrimaryBtn: {
+    backgroundColor: colors.text,
+    borderRadius: 10,
+    alignItems: 'center',
+    paddingVertical: 11,
+  },
+  modalPrimaryBtnText: { color: colors.surface, fontSize: 12, fontWeight: '700' },
+  modalSignOutBtn: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.dangerLight,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: colors.dangerSubtle,
+  },
+  modalSignOutBtnText: { color: colors.danger, fontWeight: '700', fontSize: 12 },
 
   heroRow: {
     flexDirection: 'row',

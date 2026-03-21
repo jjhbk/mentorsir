@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  PermissionsAndroid,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,9 +13,14 @@ import {
   View,
   SafeAreaView,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { colors } from '../../theme/colors';
 import { useConnectStore } from '../../store/useConnectStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import DatePicker from '../../components/DatePicker';
+import TimePicker from '../../components/TimePicker';
 import {
   MAINS_TEST_SERIES_OPTIONS,
   PRELIMS_PYQ_OPTIONS,
@@ -23,6 +31,14 @@ import { StudySession } from '../../types';
 
 const PANELS = ['private', 'group', 'meetings', 'plan', 'mentor'] as const;
 type Panel = (typeof PANELS)[number];
+const VOICE_NOTES_STORAGE_KEY = 'mentorsir:voice-notes:v1';
+
+type MeetingVoiceNote = {
+  id: string;
+  uri: string;
+  createdAt: string;
+  durationMs: number;
+};
 
 const STUDY_SUBJECTS: StudySession['subject'][] = [
   'polity',
@@ -35,7 +51,7 @@ const STUDY_SUBJECTS: StudySession['subject'][] = [
 ];
 
 export default function ConnectScreen() {
-  const { profile } = useAuthStore();
+  const { profile, updateProfile, signOut } = useAuthStore();
   const {
     loading,
     role,
@@ -73,8 +89,17 @@ export default function ConnectScreen() {
   const [privateDraft, setPrivateDraft] = useState('');
   const [groupDraft, setGroupDraft] = useState('');
   const [meetingNoteDraft, setMeetingNoteDraft] = useState<Record<string, string>>({});
+  const [voiceNotes, setVoiceNotes] = useState<Record<string, MeetingVoiceNote[]>>({});
+  const [recordingMeetingId, setRecordingMeetingId] = useState<string | null>(null);
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
+  const [playingVoiceNoteId, setPlayingVoiceNoteId] = useState<string | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileName, setProfileName] = useState(profile?.name ?? '');
+  const [profileMobile, setProfileMobile] = useState(profile?.mobile ?? '');
+  const [profileTelegram, setProfileTelegram] = useState(profile?.telegramId ?? '');
 
-  const [meetingDateTime, setMeetingDateTime] = useState('');
+  const [meetingDate, setMeetingDate] = useState(new Date().toISOString().slice(0, 10));
+  const [meetingTime, setMeetingTime] = useState('10:00 AM');
   const [meetingMode, setMeetingMode] = useState('online');
   const [meetingLink, setMeetingLink] = useState('');
   const [meetingAgenda, setMeetingAgenda] = useState('');
@@ -90,15 +115,52 @@ export default function ConnectScreen() {
   const [scheduleSubject, setScheduleSubject] = useState('');
   const [scheduleSyllabus, setScheduleSyllabus] = useState('');
   const [scheduleSource, setScheduleSource] = useState('');
+  const [showMeetingDatePicker, setShowMeetingDatePicker] = useState(false);
+  const [showMeetingTimePicker, setShowMeetingTimePicker] = useState(false);
+  const [showScheduleDatePicker, setShowScheduleDatePicker] = useState(false);
 
   const [tgGroup, setTgGroup] = useState(profile?.telegramGroupLink ?? '');
   const [waGroup, setWaGroup] = useState(profile?.whatsappGroupLink ?? '');
 
   const [timerSubject, setTimerSubject] = useState<StudySession['subject']>('polity');
+  const [timerNowMs, setTimerNowMs] = useState(Date.now());
+  const [timerBusyAction, setTimerBusyAction] = useState<'start' | 'pause' | 'resume' | 'stop' | null>(null);
+  const [timerFeedback, setTimerFeedback] = useState('');
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    const hydrateVoiceNotes = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(VOICE_NOTES_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as Record<string, MeetingVoiceNote[]>;
+        setVoiceNotes(parsed);
+      } catch {
+        setVoiceNotes({});
+      }
+    };
+    hydrateVoiceNotes();
+  }, []);
+
+  useEffect(() => {
+    setProfileName(profile?.name ?? '');
+    setProfileMobile(profile?.mobile ?? '');
+    setProfileTelegram(profile?.telegramId ?? '');
+  }, [profile?.name, profile?.mobile, profile?.telegramId]);
+
+  useEffect(
+    () => () => {
+      AudioRecorderPlayer.stopRecorder().catch(() => undefined);
+      AudioRecorderPlayer.removeRecordBackListener();
+      AudioRecorderPlayer.stopPlayer().catch(() => undefined);
+      AudioRecorderPlayer.removePlayBackListener();
+      AudioRecorderPlayer.removePlaybackEndListener();
+    },
+    []
+  );
 
   useEffect(() => {
     setTgGroup(profile?.telegramGroupLink ?? '');
@@ -111,10 +173,58 @@ export default function ConnectScreen() {
     }
   }, [peers, selectedPeerId, selectPeer]);
 
+  useEffect(() => {
+    if (!role) return;
+    setMeetingNoteDraft((prev) => {
+      const next = { ...prev };
+      meetings.forEach((meeting) => {
+        if (next[meeting.id] === undefined) {
+          next[meeting.id] = role === 'mentor' ? meeting.mentorNotes : meeting.studentNotes;
+        }
+      });
+      return next;
+    });
+  }, [meetings, role]);
+
   const activeSession = useMemo(
     () => studySessions.find((s) => s.status === 'active' || s.status === 'paused') ?? null,
     [studySessions]
   );
+
+  const activeSessionElapsedSeconds = useMemo(() => {
+    if (!activeSession) return 0;
+    const runningDelta =
+      activeSession.status === 'active' && activeSession.segmentStartedAt
+        ? Math.max(0, Math.floor((timerNowMs - new Date(activeSession.segmentStartedAt).getTime()) / 1000))
+        : 0;
+    return activeSession.accumulatedSeconds + runningDelta;
+  }, [activeSession, timerNowMs]);
+
+  const studyHistoryByDay = useMemo(() => {
+    const grouped: Record<string, { totalSeconds: number; sessionCount: number }> = {};
+    studySessions.forEach((session) => {
+      if (session.status !== 'completed') return;
+      const day = session.startedAt.slice(0, 10);
+      if (!grouped[day]) grouped[day] = { totalSeconds: 0, sessionCount: 0 };
+      grouped[day].totalSeconds += session.accumulatedSeconds;
+      grouped[day].sessionCount += 1;
+    });
+
+    return Object.entries(grouped)
+      .map(([date, payload]) => ({ date, ...payload }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [studySessions]);
+
+  const totalHistorySeconds = useMemo(
+    () => studyHistoryByDay.reduce((sum, day) => sum + day.totalSeconds, 0),
+    [studyHistoryByDay]
+  );
+
+  useEffect(() => {
+    if (activeSession?.status !== 'active') return;
+    const interval = setInterval(() => setTimerNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [activeSession?.status]);
 
   if (loading && role === null) {
     return (
@@ -145,9 +255,14 @@ export default function ConnectScreen() {
   };
 
   const onCreateMeeting = async () => {
+    const scheduledAt = mergeDateAndTimeToIso(meetingDate, meetingTime);
+    if (!scheduledAt) {
+      Alert.alert('Invalid date/time', 'Choose a valid meeting date and time.');
+      return;
+    }
     const result = await createMeeting({
       studentId: role === 'mentor' ? targetStudentId ?? undefined : undefined,
-      scheduledAt: meetingDateTime,
+      scheduledAt,
       mode: meetingMode,
       meetingLink,
       agenda: meetingAgenda,
@@ -156,7 +271,8 @@ export default function ConnectScreen() {
       Alert.alert('Unable to create meeting', result.error ?? 'Try again.');
       return;
     }
-    setMeetingDateTime('');
+    setMeetingDate(new Date().toISOString().slice(0, 10));
+    setMeetingTime('10:00 AM');
     setMeetingMode('online');
     setMeetingLink('');
     setMeetingAgenda('');
@@ -182,15 +298,203 @@ export default function ConnectScreen() {
     }
   };
 
+  const onTimerAction = async (
+    action: 'start' | 'pause' | 'resume' | 'stop',
+    payload?: { subject?: StudySession['subject']; sessionId?: string }
+  ) => {
+    setTimerBusyAction(action);
+    const result = await studySessionAction(action, payload);
+    setTimerBusyAction(null);
+
+    if (!result.ok) {
+      Alert.alert('Timer action failed', result.error ?? 'Try again.');
+      return;
+    }
+
+    if (action === 'start') setTimerFeedback(`Started ${payload?.subject ?? timerSubject}.`);
+    if (action === 'pause') setTimerFeedback('Session paused.');
+    if (action === 'resume') setTimerFeedback('Session resumed.');
+    if (action === 'stop') setTimerFeedback('Session stopped and study hours logged.');
+  };
+
+  const persistVoiceNotes = async (next: Record<string, MeetingVoiceNote[]>) => {
+    setVoiceNotes(next);
+    try {
+      await AsyncStorage.setItem(VOICE_NOTES_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      Alert.alert('Could not save voice note', 'Please try again.');
+    }
+  };
+
+  const requestMicPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const onToggleRecordVoiceNote = async (meetingId: string) => {
+    if (recordingMeetingId && recordingMeetingId !== meetingId) {
+      Alert.alert('Recording in progress', 'Stop current recording before starting another one.');
+      return;
+    }
+
+    if (!recordingMeetingId) {
+      const granted = await requestMicPermission();
+      if (!granted) {
+        Alert.alert('Microphone permission required', 'Allow microphone access to record voice notes.');
+        return;
+      }
+      try {
+        setRecordingStartedAt(Date.now());
+        await AudioRecorderPlayer.startRecorder();
+        setRecordingMeetingId(meetingId);
+      } catch {
+        setRecordingStartedAt(null);
+        setRecordingMeetingId(null);
+        Alert.alert('Recording failed', 'Could not start recording.');
+      }
+      return;
+    }
+
+    try {
+      const uri = await AudioRecorderPlayer.stopRecorder();
+      AudioRecorderPlayer.removeRecordBackListener();
+      const now = Date.now();
+      const durationMs = recordingStartedAt ? Math.max(1, now - recordingStartedAt) : 1;
+      const note: MeetingVoiceNote = {
+        id: `${meetingId}:${now}`,
+        uri,
+        createdAt: new Date(now).toISOString(),
+        durationMs,
+      };
+      const next = {
+        ...voiceNotes,
+        [meetingId]: [...(voiceNotes[meetingId] ?? []), note],
+      };
+      await persistVoiceNotes(next);
+      Alert.alert('Voice note saved', 'Recording has been saved to this meeting.');
+    } catch {
+      Alert.alert('Recording failed', 'Could not save recording.');
+    } finally {
+      setRecordingMeetingId(null);
+      setRecordingStartedAt(null);
+    }
+  };
+
+  const onPlayVoiceNote = async (note: MeetingVoiceNote) => {
+    try {
+      if (playingVoiceNoteId === note.id) {
+        await AudioRecorderPlayer.stopPlayer();
+        AudioRecorderPlayer.removePlayBackListener();
+        AudioRecorderPlayer.removePlaybackEndListener();
+        setPlayingVoiceNoteId(null);
+        return;
+      }
+
+      await AudioRecorderPlayer.stopPlayer().catch(() => undefined);
+      AudioRecorderPlayer.removePlayBackListener();
+      AudioRecorderPlayer.removePlaybackEndListener();
+
+      await AudioRecorderPlayer.startPlayer(note.uri);
+      setPlayingVoiceNoteId(note.id);
+
+      AudioRecorderPlayer.addPlaybackEndListener(() => {
+        setPlayingVoiceNoteId(null);
+      });
+    } catch {
+      setPlayingVoiceNoteId(null);
+      Alert.alert('Playback failed', 'Could not play this voice note.');
+    }
+  };
+
+  const onSaveProfile = async () => {
+    const result = await updateProfile({
+      name: profileName,
+      mobile: profileMobile,
+      telegramId: profileTelegram,
+    });
+    if (!result.ok) {
+      Alert.alert('Unable to save profile', result.error ?? 'Try again.');
+      return;
+    }
+    setShowProfileModal(false);
+  };
+
+  const onPressSignOut = () => {
+    Alert.alert('Sign out?', 'You will need to sign in again.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: async () => {
+          setShowProfileModal(false);
+          await signOut();
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
         <View style={s.headerRow}>
           <Text style={s.title}>Connect</Text>
-          <TouchableOpacity style={s.refreshBtn} onPress={refreshAll}>
-            <Text style={s.refreshText}>Refresh</Text>
-          </TouchableOpacity>
+          <View style={s.headerActions}>
+            <TouchableOpacity style={s.refreshBtn} onPress={refreshAll}>
+              <Text style={s.refreshText}>Refresh</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.profileIconBtn}
+              onPress={() => setShowProfileModal(true)}
+              accessibilityLabel="Open profile settings"
+            >
+              <Icon name="user" size={15} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        <Modal visible={showProfileModal} animationType="slide" transparent onRequestClose={() => setShowProfileModal(false)}>
+          <View style={s.modalOverlay}>
+            <View style={s.modalCard}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Edit Profile</Text>
+                <TouchableOpacity onPress={() => setShowProfileModal(false)} style={s.modalCloseBtn}>
+                  <Icon name="x" size={16} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={s.input}
+                placeholder="Name"
+                placeholderTextColor={colors.textFaint}
+                value={profileName}
+                onChangeText={setProfileName}
+              />
+              <TextInput
+                style={s.input}
+                placeholder="Mobile number"
+                placeholderTextColor={colors.textFaint}
+                value={profileMobile}
+                onChangeText={setProfileMobile}
+                keyboardType="phone-pad"
+              />
+              <TextInput
+                style={s.input}
+                placeholder="Telegram ID"
+                placeholderTextColor={colors.textFaint}
+                value={profileTelegram}
+                onChangeText={setProfileTelegram}
+              />
+
+              <TouchableOpacity style={s.primaryBtn} onPress={onSaveProfile}>
+                <Text style={s.primaryBtnText}>Save Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.signOutBtn} onPress={onPressSignOut}>
+                <Text style={s.signOutBtnText}>Sign out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         <View style={s.panelTabs}>
           {availablePanels.map((name) => (
@@ -282,13 +586,15 @@ export default function ConnectScreen() {
           <View style={s.card}>
             <Text style={s.cardTitle}>Meetings</Text>
 
-            <TextInput
-              style={s.input}
-              placeholder="Scheduled at (ISO), e.g. 2026-04-01T14:00:00+05:30"
-              placeholderTextColor={colors.textFaint}
-              value={meetingDateTime}
-              onChangeText={setMeetingDateTime}
-            />
+            <Text style={s.pickerLabel}>Meeting date</Text>
+            <TouchableOpacity style={s.input} onPress={() => setShowMeetingDatePicker(true)}>
+              <Text style={s.inputText}>{meetingDate}</Text>
+            </TouchableOpacity>
+
+            <Text style={s.pickerLabel}>Meeting time</Text>
+            <TouchableOpacity style={s.input} onPress={() => setShowMeetingTimePicker(true)}>
+              <Text style={s.inputText}>{meetingTime}</Text>
+            </TouchableOpacity>
             <TextInput
               style={s.input}
               placeholder="Mode (online/call/in-person)"
@@ -341,6 +647,31 @@ export default function ConnectScreen() {
                 >
                   <Text style={s.ghostBtnText}>Save note</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.ghostBtn}
+                  onPress={() => onToggleRecordVoiceNote(meeting.id)}
+                >
+                  <View style={s.inlineBtn}>
+                    <Icon name="mic" size={14} color={colors.text} />
+                    <Text style={s.ghostBtnText}>
+                      {recordingMeetingId === meeting.id ? 'Stop & save recording' : 'Record voice note'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                {(voiceNotes[meeting.id] ?? []).map((note) => (
+                  <TouchableOpacity
+                    key={note.id}
+                    style={s.voiceRow}
+                    onPress={() => onPlayVoiceNote(note)}
+                  >
+                    <View style={s.inlineBtn}>
+                      <Icon name={playingVoiceNoteId === note.id ? 'square' : 'play'} size={14} color={colors.text} />
+                      <Text style={s.voiceRowText}>
+                        {new Date(note.createdAt).toLocaleString('en-IN')} • {Math.ceil(note.durationMs / 1000)}s
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
 
                 {role === 'mentor' && meeting.status === 'pending' ? (
                   <View style={s.rowBtns}>
@@ -453,37 +784,88 @@ export default function ConnectScreen() {
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
-                <Text style={s.meetingMeta}>Completed today: {(totalStudySeconds / 3600).toFixed(2)}h</Text>
-                {activeSession ? (
-                  <Text style={s.meetingMeta}>Active: {activeSession.subject} ({activeSession.status})</Text>
-                ) : (
-                  <Text style={s.meetingMeta}>No active session</Text>
-                )}
+                <View style={s.timerCard}>
+                  <View style={s.timerRowTop}>
+                    <Text style={s.timerLabel}>Current session</Text>
+                    <View
+                      style={[
+                        s.timerStatusPill,
+                        activeSession?.status === 'active'
+                          ? s.timerStatusActive
+                          : activeSession?.status === 'paused'
+                            ? s.timerStatusPaused
+                            : s.timerStatusIdle,
+                      ]}
+                    >
+                      <Text style={s.timerStatusText}>
+                        {activeSession ? activeSession.status.toUpperCase() : 'IDLE'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={s.timerClock}>{formatDuration(activeSessionElapsedSeconds)}</Text>
+                  <Text style={s.meetingMeta}>
+                    {activeSession ? `Subject: ${activeSession.subject}` : `Ready: ${timerSubject}`}
+                  </Text>
+                  <Text style={s.meetingMeta}>Completed today: {(totalStudySeconds / 3600).toFixed(2)}h</Text>
+                  <Text style={s.meetingMeta}>Total logged (14d): {(totalHistorySeconds / 3600).toFixed(2)}h</Text>
+                  {timerFeedback ? <Text style={s.timerFeedbackText}>{timerFeedback}</Text> : null}
+                </View>
                 <View style={s.rowBtns}>
                   <TouchableOpacity
-                    style={s.primaryBtnSmall}
-                    onPress={() => studySessionAction('start', { subject: timerSubject })}
+                    style={[
+                      s.primaryBtnSmall,
+                      (timerBusyAction !== null || Boolean(activeSession)) && s.timerBtnDisabled,
+                    ]}
+                    disabled={timerBusyAction !== null || Boolean(activeSession)}
+                    onPress={() => onTimerAction('start', { subject: timerSubject })}
                   >
-                    <Text style={s.primaryBtnText}>Start</Text>
+                    <Text style={s.primaryBtnText}>{timerBusyAction === 'start' ? 'Starting...' : 'Start'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={s.ghostBtnInline}
-                    onPress={() => activeSession && studySessionAction('pause', { sessionId: activeSession.id })}
+                    style={[
+                      s.ghostBtnInline,
+                      (timerBusyAction !== null || activeSession?.status !== 'active') && s.timerBtnDisabled,
+                    ]}
+                    disabled={timerBusyAction !== null || activeSession?.status !== 'active'}
+                    onPress={() => activeSession && onTimerAction('pause', { sessionId: activeSession.id })}
                   >
-                    <Text style={s.ghostBtnText}>Pause</Text>
+                    <Text style={s.ghostBtnText}>{timerBusyAction === 'pause' ? 'Pausing...' : 'Pause'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={s.ghostBtnInline}
-                    onPress={() => activeSession && studySessionAction('resume', { sessionId: activeSession.id })}
+                    style={[
+                      s.ghostBtnInline,
+                      (timerBusyAction !== null || activeSession?.status !== 'paused') && s.timerBtnDisabled,
+                    ]}
+                    disabled={timerBusyAction !== null || activeSession?.status !== 'paused'}
+                    onPress={() => activeSession && onTimerAction('resume', { sessionId: activeSession.id })}
                   >
-                    <Text style={s.ghostBtnText}>Resume</Text>
+                    <Text style={s.ghostBtnText}>{timerBusyAction === 'resume' ? 'Resuming...' : 'Resume'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={s.dangerBtnSmall}
-                    onPress={() => activeSession && studySessionAction('stop', { sessionId: activeSession.id })}
+                    style={[
+                      s.dangerBtnSmall,
+                      (timerBusyAction !== null || !activeSession || activeSession.status === 'completed') && s.timerBtnDisabled,
+                    ]}
+                    disabled={timerBusyAction !== null || !activeSession || activeSession.status === 'completed'}
+                    onPress={() => activeSession && onTimerAction('stop', { sessionId: activeSession.id })}
                   >
-                    <Text style={s.primaryBtnText}>Stop</Text>
+                    <Text style={s.primaryBtnText}>{timerBusyAction === 'stop' ? 'Stopping...' : 'Stop'}</Text>
                   </TouchableOpacity>
+                </View>
+                <View style={s.timerHistoryCard}>
+                  <Text style={s.timerHistoryTitle}>Study History by Day</Text>
+                  {studyHistoryByDay.length === 0 ? (
+                    <Text style={s.meetingMeta}>No completed sessions yet.</Text>
+                  ) : (
+                    studyHistoryByDay.map((day) => (
+                      <View key={day.date} style={s.timerHistoryRow}>
+                        <Text style={s.timerHistoryDate}>{new Date(day.date + 'T00:00:00').toLocaleDateString('en-IN')}</Text>
+                        <Text style={s.timerHistoryHours}>
+                          {(day.totalSeconds / 3600).toFixed(2)}h • {day.sessionCount} session{day.sessionCount > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                    ))
+                  )}
                 </View>
               </>
             ) : null}
@@ -507,7 +889,10 @@ export default function ConnectScreen() {
             </ScrollView>
 
             <Text style={s.sectionTitle}>Assign Schedule</Text>
-            <TextInput style={s.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={colors.textFaint} value={scheduleDate} onChangeText={setScheduleDate} />
+            <Text style={s.pickerLabel}>Schedule date</Text>
+            <TouchableOpacity style={s.input} onPress={() => setShowScheduleDatePicker(true)}>
+              <Text style={s.inputText}>{scheduleDate}</Text>
+            </TouchableOpacity>
             <TextInput style={s.input} placeholder="Subject" placeholderTextColor={colors.textFaint} value={scheduleSubject} onChangeText={setScheduleSubject} />
             <TextInput style={s.input} placeholder="Syllabus" placeholderTextColor={colors.textFaint} value={scheduleSyllabus} onChangeText={setScheduleSyllabus} />
             <TextInput style={s.input} placeholder="Primary source" placeholderTextColor={colors.textFaint} value={scheduleSource} onChangeText={setScheduleSource} />
@@ -659,8 +1044,68 @@ export default function ConnectScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <DatePicker
+        visible={showMeetingDatePicker}
+        value={meetingDate}
+        label="Select meeting date"
+        onCancel={() => setShowMeetingDatePicker(false)}
+        onConfirm={(value) => {
+          setMeetingDate(value);
+          setShowMeetingDatePicker(false);
+        }}
+      />
+      <TimePicker
+        visible={showMeetingTimePicker}
+        value={meetingTime}
+        label="Select meeting time"
+        onCancel={() => setShowMeetingTimePicker(false)}
+        onConfirm={(value) => {
+          setMeetingTime(value);
+          setShowMeetingTimePicker(false);
+        }}
+      />
+      <DatePicker
+        visible={showScheduleDatePicker}
+        value={scheduleDate}
+        label="Select schedule date"
+        onCancel={() => setShowScheduleDatePicker(false)}
+        onConfirm={(value) => {
+          setScheduleDate(value);
+          setShowScheduleDatePicker(false);
+        }}
+      />
     </SafeAreaView>
   );
+}
+
+function mergeDateAndTimeToIso(dateIso: string, time12h: string): string | null {
+  const dateMatch = dateIso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = time12h.trim().match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/i);
+  if (!dateMatch || !timeMatch) return null;
+
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  let hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+  const ampm = timeMatch[3].toUpperCase();
+
+  if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) return null;
+  if (hours === 12) hours = 0;
+  if (ampm === 'PM') hours += 12;
+
+  const merged = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  if (Number.isNaN(merged.getTime())) return null;
+  return merged.toISOString();
+}
+
+function formatDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 function PickerRow({
@@ -700,9 +1145,45 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   scroll: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 56, gap: 14 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 30, fontWeight: '800', color: colors.text, letterSpacing: -0.8 },
   refreshBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
   refreshText: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  profileIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: 18 },
+  modalCard: { backgroundColor: colors.bg, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  modalTitle: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  modalCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signOutBtn: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.dangerLight,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: colors.dangerSubtle,
+  },
+  signOutBtnText: { color: colors.danger, fontWeight: '700', fontSize: 12 },
 
   panelTabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   panelTab: { paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 999 },
@@ -737,6 +1218,10 @@ const s = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: colors.surface,
   },
+  inputText: {
+    color: colors.text,
+    fontSize: 14,
+  },
 
   primaryBtn: { backgroundColor: colors.text, borderRadius: 10, alignItems: 'center', paddingVertical: 11 },
   primaryBtnSmall: { backgroundColor: colors.text, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10 },
@@ -745,11 +1230,37 @@ const s = StyleSheet.create({
   ghostBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, alignItems: 'center', paddingVertical: 10, marginTop: 2 },
   ghostBtnInline: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 10 },
   ghostBtnText: { color: colors.text, fontWeight: '700', fontSize: 12 },
+  inlineBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  voiceRow: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, marginTop: 8 },
+  voiceRowText: { color: colors.text, fontSize: 12, fontWeight: '600' },
 
   dangerBtnSmall: { backgroundColor: colors.danger, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10 },
 
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: 12 },
   rowBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 6 },
+  timerCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, marginTop: 8, marginBottom: 6 },
+  timerRowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  timerLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '700' },
+  timerClock: { color: colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -0.8, marginBottom: 4 },
+  timerStatusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  timerStatusActive: { backgroundColor: colors.successLight },
+  timerStatusPaused: { backgroundColor: colors.accentLight },
+  timerStatusIdle: { backgroundColor: colors.surfaceAlt },
+  timerStatusText: { color: colors.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
+  timerFeedbackText: { color: colors.success, fontSize: 12, fontWeight: '700', marginTop: 6 },
+  timerBtnDisabled: { opacity: 0.55 },
+  timerHistoryCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, marginTop: 10 },
+  timerHistoryTitle: { color: colors.text, fontSize: 13, fontWeight: '800', marginBottom: 8 },
+  timerHistoryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 7,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  timerHistoryDate: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  timerHistoryHours: { color: colors.text, fontSize: 12, fontWeight: '700' },
 
   meetingCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, marginTop: 10 },
   meetingTop: { color: colors.text, fontWeight: '800', fontSize: 12 },

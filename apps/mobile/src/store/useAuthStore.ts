@@ -19,6 +19,7 @@ interface AuthState {
   loading: boolean;
   initialize: () => Promise<void>;
   setUser: (user: User | null) => void;
+  updateProfile: (input: { name?: string; mobile?: string; telegramId?: string }) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -72,6 +73,29 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   setUser: (user) => set({ user }),
+
+  updateProfile: async (input) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return { ok: false, error: 'Not authenticated' };
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: input.name?.trim() || null,
+        mobile: input.mobile?.trim() || null,
+        telegram_id: input.telegramId?.trim() || null,
+      })
+      .eq('id', user.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    const profile = await loadProfile(user.id);
+    set({ profile });
+    return { ok: true };
+  },
 
   signOut: async () => {
     await supabase.auth.signOut();
